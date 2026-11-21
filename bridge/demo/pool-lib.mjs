@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createPublicClient, createWalletClient, http, formatUnits, verifyTypedData } from "viem";
+import { createPublicClient, createWalletClient, http, formatUnits, verifyTypedData, parseEventLogs } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { vaultAbi } from "../src/vault.js";
 
@@ -49,6 +49,25 @@ export const SELLER_BASE = process.env.SELLER_API_BASE ?? "http://localhost:8787
 // PoolVault ABI = PassportVault ABI + pool additions (cards + approvals).
 export const poolAbi = [
   ...vaultAbi,
+  // The two events that make a tryPay receipt self-describing: exactly one of
+  // them is emitted per call, and it is the only authoritative verdict on
+  // whether money moved. Without these, parseEventLogs throws on the receipt.
+  { type: "event", name: "PaymentExecuted",
+    inputs: [
+      { name: "passportId", type: "uint256", indexed: true },
+      { name: "payee", type: "address", indexed: true },
+      { name: "amount", type: "uint256", indexed: false },
+      { name: "ref", type: "bytes32", indexed: true },
+      { name: "spentTodayAfter", type: "uint256", indexed: false },
+    ] },
+  { type: "event", name: "PaymentRejected",
+    inputs: [
+      { name: "passportId", type: "uint256", indexed: true },
+      { name: "payee", type: "address", indexed: true },
+      { name: "amount", type: "uint256", indexed: false },
+      { name: "ref", type: "bytes32", indexed: true },
+      { name: "reasonCode", type: "uint8", indexed: false },
+    ] },
   { type: "function", name: "getCard", stateMutability: "view",
     inputs: [{ name: "passportId", type: "uint256" }, { name: "agent", type: "address" }],
     outputs: [{ name: "active", type: "bool" }, { name: "dailyCap", type: "uint256" }, { name: "spentToday", type: "uint256" }] },
@@ -119,10 +138,11 @@ const PAY_REASON = {
   6: "池子总日限已满", 7: "池余额不足", 9: "卡子额度已满", 10: "不是本池的卡",
 };
 
-// tryPay does NOT revert on a business-rule failure — the tx succeeds and
-// returns (false, code), optionally emitting PaymentRejected. So a successful
-// receipt does NOT mean the payment went through; we must decode the return
-// value. Getting this wrong makes a refusal look like a delivery failure.
+// tryPay does NOT revert on a business-rule failure: the tx succeeds and emits
+// either PaymentExecuted (paid) or PaymentRejected (refused). The receipt is the
+// only authoritative verdict — a later checkPayFor can differ from the state at
+// execution time, and inferring from delivery would conflate two very different
+// outcomes: "the vault said no" and "the vault paid but the seller kept it".
 export async function buyWithWallet(wallet, id, url) {
   const first = await fetch(url);
   if (first.status !== 402) throw new Error(`卖家返回 HTTP ${first.status}，不是 402`);
@@ -137,22 +157,26 @@ export async function buyWithWallet(wallet, id, url) {
   const receipt = await pub.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success") throw new Error(`付款交易失败：${hash}`);
 
-  // Decode the vault's verdict rather than inferring it from delivery.
-  const [me] = await wallet.getAddresses();
-  const ret = await pub.call({
-    to: POOL, abi: poolAbi, functionName: "checkPayFor",
-    args: [BigInt(id), me, invoice.payTo, amount],
-  }).catch(() => null);
+  // Authoritative verdict from the receipt itself.
+  const executed = parseEventLogs({ abi: poolAbi, logs: receipt.logs, eventName: "PaymentExecuted" });
+  const refused = parseEventLogs({ abi: poolAbi, logs: receipt.logs, eventName: "PaymentRejected" });
 
+  if (executed.length === 0) {
+    const code = refused.length ? Number(refused[0].args.reasonCode) : null;
+    // Nothing was paid, so not delivering is correct — a clean refusal.
+    throw Object.assign(
+      new Error(`链上拒绝付款${code !== null ? `（${code} ${PAY_REASON[code] ?? "规则拦截"}）` : "（未产生 PaymentExecuted）"}：tx ${hash.slice(0, 18)}…`),
+      { rejected: true, code, txHash: hash },
+    );
+  }
+
+  // The vault DID pay. From here any failure is a real loss, not a refusal —
+  // it must never be reported as "rejected", and it must never exit zero.
   const paid = await fetch(url, { headers: { "X-PAYMENT-TX": hash } });
   if (!paid.ok) {
-    // The seller refused to deliver, which is the correct behaviour when the
-    // vault did not actually pay. Report the vault's reason, not a fake
-    // "paid but delivery failed".
-    const code = ret ? Number(ret[1]) : null;
     throw Object.assign(
-      new Error(`链上拒绝付款${code !== null && code !== 0 ? `（${code} ${PAY_REASON[code] ?? "规则拦截"}）` : ""}：tx ${hash.slice(0, 18)}…，卖家未交货（HTTP ${paid.status}）`),
-      { rejected: true, code, txHash: hash },
+      new Error(`⚠️ 已付款但未取到货：tx ${hash.slice(0, 18)}… 已转出 ${amount} 单位，卖家返回 HTTP ${paid.status}。这是真实损失，不是规则拒绝。`),
+      { paidButUndelivered: true, txHash: hash, amount },
     );
   }
   const buf = Buffer.from(await paid.arrayBuffer());

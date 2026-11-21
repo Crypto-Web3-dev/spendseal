@@ -103,14 +103,21 @@
 <script>
 "use strict";
 // ===== 配置 =====
-// ?passport=N selects which pool in this pool contract to view; ?rpc=<url>
-// overrides the endpoint (e.g. a local anvil fork). Both are read-only UI
-// switches — the contract address itself is fixed in the page on purpose.
+// ?passport=N selects which pool in this contract to view. The contract address
+// and the RPC are pinned on purpose: this page decides whether to approve a
+// payment and what allowance to grant, so it must not take either from a URL.
+// A forged-RPC link would otherwise let a page decide what the owner signs.
 const QS = new URLSearchParams(location.search);
 const _pp = QS.get("passport");
 const POOL = "0xc3cd8c06377401574f8825443f60a18ac748963c";
 const POOL_ID = /^\d+$/.test(_pp ?? "") ? BigInt(_pp) : 2n;
-const RPC = QS.get("rpc") || "https://testnet-rpc.monad.xyz";
+// Local development (anvil fork) may point at a local node only. Anything
+// non-localhost in ?rpc= is ignored rather than trusted — a shared link must
+// never be able to redirect the numbers the owner approves against.
+const _rpcOverride = QS.get("rpc");
+const RPC = (_rpcOverride && /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?\/?$/.test(_rpcOverride))
+  ? _rpcOverride
+  : "https://testnet-rpc.monad.xyz";
 const CHAIN_ID_HEX = "0x279f"; // 10143 = Monad Testnet
 const LABELS = {
   "0xf58214785825c8faebb89a61c666fffc60677ea1": "主人 owner",
@@ -295,21 +302,32 @@ function renderFeed() {
     .map((f) => `<div>${f.txt} <span class="blk">#${f.blk}</span></div>`).join("") || '<div class="dim">暂无事件</div>';
 }
 
+// A refresh takes much longer than the 4s tick (the first log scan is ~12
+// eth_getLogs calls), so ticks overlap. Without this guard each overlapping
+// run scanned from the same stale watermark and pushed the same events again,
+// duplicating every row in the feed.
+let refreshing = false;
 async function refresh() {
-  // Numbers first. The pool balance, daily total and per-card ledgers come
-  // from eth_call and are cheap; they must appear within a second even when
-  // the log scan is being rate-limited. The event feed fills in after.
+  if (refreshing) return;
+  refreshing = true;
   try {
-    const [pool, cards, reqs] = await Promise.all([readPool(), readCards(), readRequests()]);
-    render(pool, cards, reqs);
-  } catch (e) {
-    err("读取链上状态失败：" + e.message);
-    return;
+    // Numbers first. The pool balance, daily total and per-card ledgers come
+    // from eth_call and are cheap; they must appear within a second even when
+    // the log scan is being rate-limited. The event feed fills in after.
+    try {
+      const [pool, cards, reqs] = await Promise.all([readPool(), readCards(), readRequests()]);
+      render(pool, cards, reqs);
+    } catch (e) {
+      err("读取链上状态失败：" + e.message);
+      return;
+    }
+    // Event scanning is best-effort: a rate-limited feed must never blank the
+    // numbers above it.
+    try { await scanLogs(); renderFeed(); err(""); }
+    catch (e) { err("链上事件暂时取不到（" + e.message.slice(0, 50) + "）——上方数字仍为链上实时值"); }
+  } finally {
+    refreshing = false;
   }
-  // Event scanning is best-effort: a rate-limited feed must never blank the
-  // numbers above it.
-  try { await scanLogs(); renderFeed(); err(""); }
-  catch (e) { err("链上事件暂时取不到（" + e.message.slice(0, 50) + "）——上方数字仍为链上实时值"); }
 }
 
 // ===== 钱包写入 =====
