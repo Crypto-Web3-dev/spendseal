@@ -1,0 +1,1 @@
+{"mcpServers":{"spendseal":{"args":["-d","Ubuntu","--","node","/home/你的WSL用户名/spendseal/bridge/src/index.js"],"command":"wsl.exe","env":{"PASSPORT_ID":"1","WSLENV":"PASSPORT_ID"}}}}

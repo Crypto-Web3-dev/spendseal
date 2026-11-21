@@ -1,0 +1,21 @@
+# Render blueprint alternative to fly.toml (same Dockerfile).
+# In-memory invoice state => a single instance is required; do not scale.
+services:
+  - type: web
+    name: spendseal-seller
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter # smallest plan with enough RAM for headless Chrome
+    numInstances: 1
+    healthCheckPath: /health
+    envVars:
+      - key: VAULT_ADDRESS
+        sync: false
+      - key: SELLER_ADDRESS
+        sync: false
+      - key: SELLER_PRIVATE_KEY
+        sync: false
+      - key: ATTACKER_ADDRESS
+        sync: false
+      - key: MONAD_RPC_URL
+        value: https://testnet-rpc.monad.xyz

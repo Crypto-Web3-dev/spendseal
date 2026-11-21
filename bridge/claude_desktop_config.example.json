@@ -1,0 +1,1 @@
+{"mcpServers":{"spendseal":{"args":["/ABSOLUTE/PATH/TO/spendseal/bridge/src/index.js"],"command":"node","env":{"AGENT_PRIVATE_KEY":"0x<agent-key-from-repo-dot-env>","PASSPORT_ID":"1","RPC_URL":"https://testnet-rpc.monad.xyz","SELLER_API_BASE":"http://localhost:8787","VAULT_ADDRESS":"0x88817cf2ef5afa8497f6a95deb04fa7ce8f47cf1"}}}}

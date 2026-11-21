@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>SpendSeal 16:9 幻灯片</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #f6f7fa;
+    --surface: #ffffff;
+    --surface-2: #eef1f7;
+    --fg: #0d1220;
+    --dim: #5a6478;
+    --faint: #8b93a7;
+    --line: #dde2ec;
+    --line-strong: #c3cbdb;
+    --accent: #0b6b3a;
+    --accent-soft: #e3f4ea;
+    --bad: #b42318;
+    --warn: #94600a;
+    --sans: 'Inter', 'Microsoft YaHei UI', 'Noto Sans SC', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'DejaVu Sans Mono', monospace;
+  }
+  html[data-theme="dark"] {
+    --bg: #0b1020;
+    --surface: #121a33;
+    --surface-2: #16203c;
+    --fg: #eef2fb;
+    --dim: #9aa6c0;
+    --faint: #6b7794;
+    --line: #1f2b4a;
+    --line-strong: #2c3b60;
+    --accent: #3ddc84;
+    --accent-soft: #10301f;
+    --bad: #f87171;
+    --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  .slide {
+    width: 1920px;
+    height: 1080px;
+    background: var(--bg);
+    color: var(--fg);
+    padding: 0 96px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+  .slide + .slide { margin-top: 24px; }
+
+  /* ---- head ---- */
+  .s-head { padding-top: 72px; flex: none; }
+  .bar { width: 56px; height: 4px; background: var(--accent); margin-bottom: 26px; }
+  .eyebrow {
+    font-size: 21px; font-weight: 600; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--accent);
+    font-family: var(--mono);
+  }
+  h1 {
+    margin-top: 14px;
+    font-family: 'Space Grotesk', var(--sans);
+    font-size: 56px; font-weight: 700; line-height: 1.2;
+    letter-spacing: -.01em;
+    text-wrap: balance;
+  }
+  .sub {
+    margin-top: 14px; font-size: 24px; color: var(--dim); line-height: 1.5;
+  }
+
+  /* ---- figure ---- */
+  .s-fig {
+    flex: 1 1 auto; min-height: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px 0;
+  }
+  .s-fig img {
+    max-width: 100%; max-height: 100%;
+    width: auto; height: auto;
+    display: block;
+  }
+
+  /* ---- foot ---- */
+  .s-foot {
+    flex: none;
+    padding-bottom: 62px;
+    border-top: 1px solid var(--line);
+    padding-top: 26px;
+    display: flex; align-items: flex-start; gap: 40px;
+  }
+  .take {
+    font-size: 26px; line-height: 1.6; color: var(--fg); max-width: 1480px;
+  }
+  .take b { color: var(--accent); }
+  .pg {
+    margin-left: auto; flex: none;
+    font-family: var(--mono); font-size: 20px; color: var(--faint);
+    padding-top: 6px; white-space: nowrap;
+  }
+
+  /* ---- title slide ---- */
+  .cover { justify-content: center; }
+  .cover .wordmark {
+    font-family: 'Space Grotesk', var(--sans);
+    font-size: 132px; font-weight: 700; letter-spacing: -.035em; line-height: 1;
+  }
+  .cover .wordmark .dot { color: var(--accent); }
+  .cover .claim {
+    margin-top: 30px; font-size: 40px; line-height: 1.45; color: var(--fg);
+    max-width: 1300px; font-weight: 500;
+  }
+  .cover .claim b { color: var(--accent); font-weight: 700; }
+  .cover .rule {
+    width: 100%; height: 1px; background: var(--line); margin: 58px 0 34px;
+  }
+  .cover .meta {
+    display: flex; gap: 56px; flex-wrap: wrap;
+    font-size: 21px; color: var(--dim);
+  }
+  .cover .meta .k {
+    font-family: var(--mono); font-size: 16px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--faint); display: block; margin-bottom: 7px;
+  }
+  .cover .meta code { font-family: var(--mono); font-size: 20px; }
+</style>
+</head>
+<body>
+
+<!-- ============ 0 · cover ============ -->
+<section class="slide cover" data-slide="cover">
+  <div class="s-head" style="padding-top:0">
+    <div class="eyebrow" style="color:var(--faint);letter-spacing:.18em">Monad Blitz 广州 · 2026-11-21</div>
+    <div class="wordmark" style="margin-top:26px">SpendSeal<span class="dot">.</span></div>
+    <div class="claim">
+      Agent 花钱时的<b>强制执行点</b>，在合约里。
+    </div>
+    <div class="meta" style="margin-top:26px;font-size:24px;max-width:1240px">
+      行业已经铺好了身份、支付轨道、授权证据三层。缺的是第四层——付款那一刻，由谁按主人的规矩说“不”。
+    </div>
+  </div>
+  <div class="rule"></div>
+  <div class="meta">
+    <div><span class="k">链</span>Monad testnet · 10143</div>
+    <div><span class="k">金库</span><code>0x8881…7cf1</code></div>
+    <div><span class="k">资产</span>USDC · Circle 测试网</div>
+    <div><span class="k">合约测试</span>17 / 17</div>
+  </div>
+</section>
+
+<!-- ============ 1 · 架构 ============ -->
+<section class="slide" data-slide="A">
+  <div class="s-head">
+    <div class="bar"></div>
+    <div class="eyebrow">01 · 架构</div>
+    <h1>钱从左到右，没有一条直连</h1>
+  </div>
+  <div class="s-fig">
+    <img data-fig="A" alt="架构图：主人钱包在可信域，Agent 与卖家在不可信域，PassportVault 是唯一强制点并托管全部 USDC。">
+  </div>
+  <div class="s-foot">
+    <div class="take">
+      Agent 地址里<b>一分 USDC 都没有</b>，只有 gas。所有钱托管在金库、按护照记账——所以“绕过护照”不是一条被堵住的路，而是一条<b>不存在的路</b>。
+    </div>
+    <div class="pg">01 / 03</div>
+  </div>
+</section>
+
+<!-- ============ 2 · 六步 ============ -->
+<section class="slide" data-slide="B">
+  <div class="s-head">
+    <div class="bar"></div>
+    <div class="eyebrow">02 · 一笔付款的六步</div>
+    <h1>六步里，只有一步是安全边界</h1>
+  </div>
+  <div class="s-fig">
+    <img data-fig="B" alt="时序图：Agent、卖家、PassportVault 三方在一笔付款里的六次交互，其中只有两步真正在链上。">
+  </div>
+  <div class="s-foot">
+    <div class="take">
+      <b>④ tryPay</b> 是唯一的强制点；<b>②</b> 发生在任何交易之前，是不让一张假发票上链的那一步；<b>③ 可以省</b>——省的是 gas 和可解释性，不是安全。
+    </div>
+    <div class="pg">02 / 03</div>
+  </div>
+</section>
+
+<!-- ============ 3 · 对比 ============ -->
+<section class="slide" data-slide="C">
+  <div class="s-head">
+    <div class="bar"></div>
+    <div class="eyebrow">03 · 同生态对比</div>
+    <h1>否决权：发卡行 → 服务器 → 合约</h1>
+  </div>
+  <div class="s-fig">
+    <img data-fig="C" alt="三条路径对比：普通支付把是否放行交给发卡行，官方 x402 交给生态里的服务器，本项目交给合约；只有第三条路径在付款前校验卖家签名的报价。">
+  </div>
+  <div class="s-foot">
+    <div class="take">
+      中间那一格就是“谁在说<b>不</b>”。真正的差异在最右列：我们签的是<b>报价本身</b>，其他方案签的是<b>结算授权</b>。
+    </div>
+    <div class="pg">03 / 03</div>
+  </div>
+</section>
+
+<script>
+  // Swap figure sources with the page theme. Re-runs whenever the root's
+  // data-theme attribute changes, so rendering a theme after load works too.
+  (function () {
+    var BASE = { A: 'A-architecture', B: 'B-flow', C: 'C-compare' };
+
+    function apply() {
+      var theme = document.documentElement.getAttribute('data-theme') || 'light';
+      document.querySelectorAll('img[data-fig]').forEach(function (img) {
+        var src = '../docs/submission/figs/' + BASE[img.dataset.fig] + '-' + theme + '.png';
+        if (img.getAttribute('src') !== src) img.src = src;
+      });
+    }
+
+    apply();
+    window.__applyTheme = apply;
+    new MutationObserver(apply).observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+  })();
+</script>
+</body>
+</html>

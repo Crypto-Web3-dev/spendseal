@@ -1,0 +1,8 @@
+node_modules
+test
+README.md
+Dockerfile
+.dockerignore
+fly.toml
+render.yaml
+DEPLOY.md

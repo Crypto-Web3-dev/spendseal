@@ -1,0 +1,3187 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpendSeal 控制台 — Agent 支出护照</title>
+<style>
+  :root { --bg:#0b1020; --card:#151b31; --line:#26304f; --txt:#e8ecf8; --dim:#93a0c2; --acc:#6ee7a8; --warn:#fbbf24; --bad:#f87171; --btn:#2b3a63; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--txt); }
+  header { display:flex; align-items:center; gap:16px; padding:18px 28px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:22px; margin:0; } header .sub { color:var(--dim); font-size:13px; }
+  .spacer { flex:1; }
+  button { background:var(--btn); color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:9px 16px; font-size:14px; cursor:pointer; }
+  button:hover { filter:brightness(1.2); } button:disabled { opacity:.45; cursor:not-allowed; }
+  button.primary { background:#14532d; border-color:#166534; }
+  button.danger { background:#7f1d1d; border-color:#991b1b; font-weight:700; }
+  .pill { padding:4px 12px; border-radius:99px; font-size:13px; border:1px solid var(--line); }
+  .pill.ok { color:var(--acc); border-color:#166534; } .pill.bad { color:var(--bad); border-color:#991b1b; }
+  main { padding:22px 28px 40px; display:grid; grid-template-columns:repeat(12,1fr); gap:16px; max-width:1280px; margin:0 auto; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; }
+  .card h2 { margin:0 0 12px; font-size:15px; color:var(--dim); font-weight:600; letter-spacing:.04em; }
+  .big { font-size:30px; font-weight:700; } .unit { font-size:14px; color:var(--dim); font-weight:400; }
+  .span4 { grid-column:span 4; } .span6 { grid-column:span 6; } .span8 { grid-column:span 8; } .span12 { grid-column:span 12; }
+  @media (max-width:900px){ .span4,.span6,.span8{ grid-column:span 12; } }
+  .bar { height:10px; background:#0d1330; border-radius:99px; overflow:hidden; margin-top:10px; }
+  .bar > div { height:100%; background:linear-gradient(90deg,#22c55e,#6ee7a8); width:0%; transition:width .5s; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  input[type=text], input[type=number] { background:#0d1330; border:1px solid var(--line); color:var(--txt); border-radius:10px; padding:9px 12px; font-size:14px; min-width:0; }
+  input.amt { width:110px; } input.addr { flex:1; min-width:220px; }
+  label.switch { display:inline-flex; gap:8px; align-items:center; cursor:pointer; font-size:14px; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  th { color:var(--dim); font-weight:600; }
+  .mono { font-family:ui-monospace,Menlo,monospace; font-size:12.5px; }
+  a { color:#93c5fd; text-decoration:none; } a:hover { text-decoration:underline; }
+  .tag { font-size:12px; padding:2px 8px; border-radius:99px; background:#0d1330; border:1px solid var(--line); }
+  .tag.sell { color:var(--acc); } .tag.atk { color:var(--bad); }
+  #toast { position:fixed; right:20px; bottom:20px; max-width:420px; display:none; background:#111a33; border:1px solid var(--line); border-radius:12px; padding:14px 16px; font-size:14px; z-index:50; }
+  dialog { background:var(--card); color:var(--txt); border:1px solid var(--line); border-radius:14px; max-width:440px; }
+  dialog::backdrop { background:rgba(0,0,0,.6); }
+  .muted { color:var(--dim); font-size:13px; }
+  /* ===== Stage mode (2026-11-21 presentation layer) ===== */
+  #stage { position:fixed; inset:0; z-index:80; background:var(--bg); display:none; flex-direction:column; padding:34px 48px 26px; overflow:hidden; }
+  body.stage-on #stage { display:flex; }
+  body.stage-on #stamp { display:block; }
+  .stage-top { display:flex; align-items:center; justify-content:space-between; gap:20px; }
+  .stage-brand { font-size:40px; font-weight:800; letter-spacing:.01em; }
+  .stage-sub { font-size:20px; color:var(--dim); font-weight:500; margin-left:14px; }
+  .stage-pill { font-size:24px; padding:10px 26px; border-radius:99px; border:2px solid #166534; color:var(--acc); }
+  .stage-pill.bad { border-color:#991b1b; color:var(--bad); }
+  .stage-main { flex:1; display:grid; grid-template-columns:1fr 400px; gap:26px; margin-top:28px; min-height:0; overflow:auto; }
+  .stage-col { display:flex; flex-direction:column; gap:26px; min-height:0; }
+  .stage-card { background:var(--card); border:1px solid var(--line); border-radius:20px; padding:30px 36px; }
+  .stage-h { font-size:21px; color:var(--dim); font-weight:600; letter-spacing:.06em; }
+  .stage-big { font-size:96px; font-weight:800; line-height:1.08; }
+  .stage-unit { font-size:30px; color:var(--dim); font-weight:500; }
+  .stage-mid { font-size:46px; font-weight:700; line-height:1.25; }
+  .stage-bar { height:22px; background:#0d1330; border-radius:99px; overflow:hidden; margin-top:14px; }
+  .stage-bar > div { height:100%; background:linear-gradient(90deg,#22c55e,#6ee7a8); width:0%; transition:width .5s; }
+  .stage-note { font-size:19px; color:var(--dim); margin-top:12px; line-height:1.5; }
+  /* align-content keeps the two halves readable when the card is stretched to
+     fill the column; without it the text hugs the top and the card looks empty
+     (seen on stage 2026-11-21). */
+  .stage-versus { display:grid; grid-template-columns:1fr 1fr; gap:30px; flex:1; align-content:center; }
+  .stage-versus > div { display:flex; flex-direction:column; justify-content:center; }
+  .simtag { font-size:15px; padding:2px 10px; border-radius:99px; border:1px solid var(--warn); color:var(--warn); white-space:nowrap; }
+  .sim-drained { color:var(--bad) !important; }
+  .stage-qr-card { display:flex; flex-direction:column; align-items:center; text-align:center; }
+  .stage-qr { background:#fff; border-radius:16px; padding:14px; margin-top:18px; width:300px; height:300px; display:flex; align-items:center; justify-content:center; }
+  .stage-qr svg { width:100% !important; height:100% !important; }
+  /* `hidden` must win: the class sets display:flex, which otherwise overrides
+     the UA stylesheet's [hidden]{display:none} and leaves the closing card
+     stacked on top of the live stage (found 2026-11-21). */
+  .stage-end { flex:1; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:8px; display:none; }
+  .stage-end:not([hidden]) { display:flex; }
+  body.stage-end-on .stage-top,
+  body.stage-end-on .stage-keys { display:none; }
+  .stage-end-brand { font-size:110px; font-weight:800; }
+  .stage-end-slogan { font-size:30px; color:var(--acc); }
+  .stage-end-line { font-size:27px; color:var(--txt); max-width:1100px; line-height:1.6; margin-top:16px; }
+  .stage-end-vote { font-size:40px; font-weight:800; margin-top:22px; color:var(--warn); }
+  .stage-keys { margin-top:14px; font-size:15px; color:var(--dim); text-align:center; flex:none; }
+
+  /* Scale the whole stage down on shorter screens instead of clipping the
+     bottom line (e.g. the closing vote card). 1080p at 125% zoom = ~864 CSS px,
+     which is where the layout used to overflow. */
+  @media (max-height: 900px) {
+    .stage-big { font-size:74px; }
+    .stage-mid { font-size:36px; }
+    .stage-h { font-size:18px; }
+    .stage-note { font-size:16px; }
+    .stage-card { padding:22px 28px; }
+    .stage-qr { width:250px; height:250px; }
+  }
+  @media (max-height: 720px) {
+    #stage { padding:20px 28px 16px; }
+    .stage-big { font-size:60px; }
+    .stage-mid { font-size:30px; }
+    .stage-end-brand { font-size:76px; }
+    .stage-end-line { font-size:21px; }
+    .stage-end-vote { font-size:32px; }
+    .stage-main { gap:18px; margin-top:18px; }
+    .stage-qr { width:200px; height:200px; }
+  }
+  #stamp { display:none; position:fixed; left:50%; top:44%; z-index:90; transform:translate(-50%,-50%) rotate(-12deg) scale(2.4); border:7px solid var(--acc); color:var(--acc); border-radius:16px; padding:18px 44px; font-size:64px; font-weight:800; letter-spacing:.08em; background:rgba(11,16,32,.82); opacity:0; pointer-events:none; white-space:nowrap; }
+  #stamp.show { animation:stampIn 2.2s ease forwards; }
+  @keyframes stampIn { 0% { opacity:0; transform:translate(-50%,-50%) rotate(-12deg) scale(2.4); } 12% { opacity:1; transform:translate(-50%,-50%) rotate(-12deg) scale(1); } 78% { opacity:1; } 100% { opacity:0; transform:translate(-50%,-50%) rotate(-12deg) scale(1); } }
+  #stage.reject-flash .stage-versus { animation:rFlash .5s ease; }
+  @keyframes rFlash { 0% { box-shadow:0 0 0 0 rgba(248,113,113,0); } 30% { box-shadow:0 0 0 6px rgba(248,113,113,.75); } 100% { box-shadow:0 0 0 0 rgba(248,113,113,0); } }
+</style>
+</head>
+<body>
+<header>
+  <div style="font-size:30px">🦭</div>
+  <div>
+    <h1>SpendSeal 控制台</h1>
+    <div class="sub">Agent 支出护照 · Monad 测试网 · PassportVault <span class="mono" id="vaultShort"></span></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="row">
+    <span class="muted">护照</span>
+    <button id="p1btn">#1 演示</button>
+    <button id="p2btn">#2 测试</button>
+    <span id="statusPill" class="pill">读取中…</span>
+    <button id="refreshBtn">↻ 刷新</button>
+    <button id="connectBtn" class="primary">连接主人钱包</button>
+  </div>
+</header>
+
+<main>
+  <section class="card span4">
+    <h2>护照余额</h2>
+    <div class="big"><span id="balance">–</span> <span class="unit">USDC</span></div>
+    <div class="muted">现在最多还能付 <b id="remaining" style="color:var(--acc)">–</b> USDC</div>
+    <div class="row" style="margin-top:14px">
+      <input class="amt" id="depositAmt" type="number" step="0.01" min="0" value="1.00">
+      <button id="depositBtn" class="primary">存入 USDC</button>
+      <button id="withdrawBtn">提回钱包</button>
+    </div>
+    <div class="muted" style="margin-top:8px">存入 = 一次点击完成 approve + 入账；提款任何时候可用，熔断后也能提。</div>
+  </section>
+
+  <section class="card span4">
+    <h2>今日额度（UTC 日限额）</h2>
+    <div class="big"><span id="spentToday">–</span> <span class="unit">/ <span id="dailyLimit">–</span> USDC 已付</span></div>
+    <div class="bar"><div id="dayBar"></div></div>
+    <div class="muted" style="margin-top:8px">单笔限额 <b id="singleLimit">–</b> USDC · 累计已付 <span id="spentTotal">–</span> USDC · 次日自动恢复</div>
+  </section>
+
+  <section class="card span4">
+    <h2>熔断开关</h2>
+    <div class="muted" style="margin-bottom:12px">按下后 Agent 立即无法付款，<b style="color:var(--bad)">不可恢复</b>（恢复 = 新建护照）。主人的钱不受影响，随时可提。</div>
+    <button id="revokeBtn" class="danger" style="width:100%;padding:14px">⛔ 立即熔断这张护照</button>
+    <label class="switch" style="margin-top:16px">
+      <input type="checkbox" id="logToggle"> 拒绝付款上链审计（PaymentRejected 事件）
+    </label>
+    <div class="muted">开启后，被拒的付款会留一条链上记录（需付少量 gas），出现在下方审计区。</div>
+  </section>
+
+  <section class="card span6">
+    <h2>限额设置（仅主人）</h2>
+    <div class="row">
+      <label class="muted">单笔上限 USDC <input class="amt" id="singleIn" type="number" step="0.01" min="0"></label>
+      <label class="muted">日限额 USDC <input class="amt" id="dailyIn" type="number" step="0.01" min="0"></label>
+      <button id="limitsBtn" class="primary">保存限额</button>
+    </div>
+    <div class="muted" style="margin-top:8px">把日限额调到低于今日已付会立即生效：今天剩余时间全部付款被拒，明日恢复。</div>
+  </section>
+
+  <section class="card span6">
+    <h2>收款白名单（仅主人）</h2>
+    <div id="payeeList"></div>
+    <div class="row" style="margin-top:10px">
+      <input class="addr mono" id="newPayee" type="text" placeholder="0x… 新收款地址">
+      <button id="addPayeeBtn" class="primary">加入白名单</button>
+    </div>
+  </section>
+
+  <section class="card span8">
+    <h2>付款流水（PaymentExecuted）</h2>
+    <table><thead><tr><th>时间</th><th>收款方</th><th>金额</th><th>ref</th><th>交易</th></tr></thead><tbody id="feedBody"><tr><td colspan="5" class="muted">读取中…</td></tr></tbody></table>
+  </section>
+
+  <section class="card span4">
+    <h2>拒绝审计（PaymentRejected）</h2>
+    <table><thead><tr><th>收款方</th><th>金额</th><th>原因</th></tr></thead><tbody id="auditBody"><tr><td colspan="3" class="muted">暂无（或审计开关未开）</td></tr></tbody></table>
+  </section>
+
+  <section class="card span12">
+    <div class="muted">安全模型：USDC 全部托管在金库按护照记账，Agent 地址只有 gas 用的 MON——不经金库，Agent 付不出一分钱。改限额 / 白名单 / 熔断 / 提款只有主人钱包能签，Agent 没有对应的 MCP 工具。</div>
+  </section>
+</main>
+
+<dialog id="revokeDlg">
+  <h3 style="margin-top:0">确认熔断护照 <span id="dlgPid"></span>？</h3>
+  <p class="muted">熔断<b style="color:var(--bad)">不可恢复</b>：Agent 将立即无法再付款。护照里的 USDC 不会被锁死，你随时可以提回钱包。</p>
+  <label class="switch"><input type="checkbox" id="revokeAck"> 我知道熔断不可恢复</label>
+  <div class="row" style="margin-top:16px; justify-content:flex-end">
+    <button id="revokeCancel">取消</button>
+    <button id="revokeConfirm" class="danger" disabled>确认熔断</button>
+  </div>
+</dialog>
+
+<div id="toast"></div>
+
+<!-- ===== Stage mode DOM (2026-11-21 presentation layer; toggled with B) ===== -->
+<div id="stage">
+  <div class="stage-top">
+    <div class="stage-brand">🦭 SpendSeal<span class="stage-sub">Agent 支出护照 · Monad 测试网</span></div>
+    <div class="stage-pill" id="stagePill">护照读取中…</div>
+  </div>
+  <div class="stage-main" id="stageMain">
+    <div class="stage-col">
+      <section class="stage-card">
+        <div class="stage-h">护照余额</div>
+        <div class="stage-big"><span id="stageBalance">–</span><span class="stage-unit"> USDC</span></div>
+        <div class="stage-h" style="margin-top:20px">今日已付 / 日限额（UTC）</div>
+        <div class="stage-mid"><span id="stageSpent">–</span> / <span id="stageDaily">–</span> USDC</div>
+        <div class="stage-bar"><div id="stageBar"></div></div>
+        <div class="stage-note">单笔上限 <span id="stageSingle">–</span> USDC · 只认白名单 · 最坏损失封顶 = 日限额</div>
+      </section>
+      <section class="stage-card stage-versus">
+        <div>
+          <div class="stage-h" style="color:var(--bad)">无护照的普通钱包 <span class="simtag">模拟演示</span></div>
+          <div class="stage-mid" id="simBalance">1.00 USDC</div>
+          <div class="stage-note" id="simStatus">私钥 / 会话一旦被诱导授权：没有限额、没有白名单、没有熔断。按 S 键开始模拟掏空。</div>
+        </div>
+        <div>
+          <div class="stage-h" style="color:var(--acc)">SpendSeal · 本场链上真实拦截</div>
+          <div class="stage-mid"><span id="blockedCount">0</span> 次 · <span id="blockedAmount">0.00</span> USDC</div>
+          <div class="stage-note">每次拦截都是一条链上 PaymentRejected 记录；本场已成功付款 <span id="paidCount">0</span> 笔。</div>
+        </div>
+      </section>
+    </div>
+    <section class="stage-card stage-qr-card">
+      <div class="stage-h" id="stageQrTitle">扫码验最新一笔交易</div>
+      <div id="stageQr" class="stage-qr"></div>
+      <div class="stage-note" id="stageQrCap">在你自己的手机上打开链上记录核对：金额、收款人、合约地址</div>
+    </section>
+  </div>
+  <div class="stage-end" id="stageEnd" hidden>
+    <div class="stage-end-brand">🦭 SpendSeal</div>
+    <div class="stage-end-slogan">A sealed spending allowance for your AI agent.</div>
+    <div class="stage-end-line">给 Agent 的不是钱包，是一张随时可撕、额度封顶、只认白名单、发票要验签的护照——权限、限额、追责，全在链上。</div>
+    <div id="stageEndQr" class="stage-qr"></div>
+    <div class="stage-note">扫码验金库合约 · Monad 测试网</div>
+    <div class="stage-end-vote">觉得这个规矩该立 —— 请投票支持 SpendSeal</div>
+  </div>
+  <div class="stage-keys">B 大屏开/关 · E 投票卡 · S 模拟掏空 · 音效需先点一次页面解锁 · 演示期间不要刷新本页（本场计数会清零）</div>
+</div>
+<div id="stamp">PAID · 已验签</div>
+
+
+<script>
+"use strict";
+// ---- config (hardcoded for the demo; no address typing on stage) ----
+const qs = new URLSearchParams(location.search);
+const CONFIG = {
+  rpc: qs.get("rpc") || "https://testnet-rpc.monad.xyz",
+  // Fallback endpoint: the public RPC rate-limits aggressively (~20 rps with
+  // bursts), and the console polls every few seconds. When the primary starts
+  // returning 429 the client rotates here automatically. Both were verified to
+  // support eth_getLogs on Monad testnet (2026-11-21).
+  rpcBackup: qs.get("rpc2") || "https://rpc-testnet.monadinfra.com",
+  chainId: 10143,
+  vault: "0x88817cf2ef5afa8497f6a95deb04fa7ce8f47cf1",
+  usdc: "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+  explorer: "https://testnet.monadvision.com",
+};
+const KNOWN = {
+  "0xf58214785825c8faebb89a61c666fffc60677ea1": { name: "主人 owner", tag: "" },
+  "0x69637d5da344decbee8be1bffa043c886b7f6f20": { name: "Agent", tag: "" },
+  "0xc451a5183a5ecd4f96f7c65bfda63a89c8ecba06": { name: "卖家 seller（截图 API）", tag: "sell" },
+  "0x0e4f7c8014ab01514e8e48eb12cd36f55c5e7515": { name: "攻击者演示地址", tag: "atk" },
+};
+const SEL = {
+  getPassport: "0x9f5679f4", remainingAllowance: "0x96b84cb6", isPayee: "0x80a7998c",
+  depositUSDC: "0xe740010f", withdraw: "0x441a3e70", updateLimits: "0x36a0f8a5",
+  addPayee: "0x30e26964", removePayee: "0x9c1e4975", setRejectionLogging: "0xd70c23ec",
+  revoke: "0x20c5429b", approve: "0x095ea7b3", allowance: "0xdd62ed3e", balanceOf: "0x70a08231",
+};
+const TOPIC = {
+  executed: "0xb416667e3544549e9de43167eede842b8753db27f89921e395a027b03bca87a9",
+  rejected: "0x2a3dead947b64b031bf7c449ccf92ac3d1ea47a5189dd20088c17342d821034f",
+  payeeAdded: "0xde1c679692c9c93e23969d9d8821eac53ba5526161d5501bb9ec5293fd44075e",
+  payeeRemoved: "0x115b3c31cc3700da09f58c4610994c896b8e08f6729f93fbd7d3eb779cd0674b",
+};
+const REASONS = { 1:"护照不存在", 2:"已熔断", 3:"已过期", 4:"白名单外", 5:"超单笔限额", 6:"超日限额", 7:"余额不足", 8:"缺 ref" };
+let passportId = Number(qs.get("passport") || 1);
+let account = null;
+let passport = null;
+
+// ---- tiny ABI helpers (zero-dependency by design: venue-proof) ----
+const pad32 = (hex) => hex.replace(/^0x/, "").padStart(64, "0");
+const encUint = (v) => pad32(BigInt(v).toString(16));
+const encAddr = (a) => pad32(a);
+const encBool = (b) => encUint(b ? 1 : 0);
+const word = (hex, i) => hex.slice(2 + i * 64, 2 + (i + 1) * 64);
+const toBig = (w) => BigInt("0x" + w);
+const toAddr = (w) => "0x" + w.replace(/^0x/, "").slice(-40);
+const fmt = (units) => (Number(units) / 1e6).toFixed(2);
+const fmt6 = (units) => (Number(units) / 1e6).toFixed(6).replace(/0+$/, "").replace(/\.$/, ".0");
+const short = (a) => a.slice(0, 6) + "…" + a.slice(-4);
+const label = (a) => { const k = KNOWN[a.toLowerCase()]; return k ? `${k.name}` : short(a); };
+
+// RPC with rate-limit handling. The public Monad endpoint answers over-quota
+// requests with the plain-text body "Rate limit exceeded " and HTTP 429 — so
+// r.json() used to blow up with "Unexpected token 'R'" and the UI showed a
+// parse error instead of the real cause. Now: detect 429/plain-text, retry with
+// backoff, and fail over to rpcBackup; only surfaces a real error once both
+// endpoints have given up. (2026-11-21)
+let rpcFailStreak = 0;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function rpcOnce(endpoint, method, params) {
+  const r = await fetch(endpoint, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  const text = await r.text();
+  let j = null;
+  try { j = JSON.parse(text); } catch { /* non-JSON (rate limit / gateway page) */ }
+  if (!j) {
+    const limited = r.status === 429 || /rate limit/i.test(text);
+    const err = new Error(limited ? "rpc_rate_limited" : `rpc_bad_response_${r.status}`);
+    err.limited = limited;
+    throw err;
+  }
+  if (j.error) {
+    const err = new Error(j.error.message || "rpc error");
+    err.limited = /rate limit|too many/i.test(j.error.message || "");
+    throw err;
+  }
+  return j.result;
+}
+
+async function rpc(method, params) {
+  const endpoints = [CONFIG.rpc, CONFIG.rpcBackup].filter((v, i, a) => v && a.indexOf(v) === i);
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    for (const ep of endpoints) {
+      try {
+        const out = await rpcOnce(ep, method, params);
+        // Only fall back for this call — do NOT permanently switch. Measured
+        // 2026-11-21: the primary tolerates a 7-chunk scan at conc=2 with zero
+        // 429s while the backup 429s at the same load, so sticking to whichever
+        // happened to answer would move traffic onto the weaker node.
+        rpcFailStreak = 0;
+        return out;
+      } catch (e) {
+        lastErr = e;
+        if (!e.limited) continue;                 // non-limit error: try next endpoint at once
+      }
+    }
+    // Every endpoint was rate-limited: back off, then retry.
+    await sleep(400 * Math.pow(2, attempt) + Math.random() * 250);
+  }
+  rpcFailStreak++;
+  const err = new Error(lastErr?.limited
+    ? "RPC 限流（已自动重试并切换备用节点）。稍等几秒会自动恢复。"
+    : (lastErr?.message || "rpc error"));
+  err.limited = !!lastErr?.limited;
+  throw err;
+}
+const call = (to, data) => rpc("eth_call", [{ to, data }, "latest"]);
+
+function toast(msg, ms = 5200) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.style.display = "block";
+  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", ms);
+}
+
+async function loadPassport() {
+  const data = await call(CONFIG.vault, SEL.getPassport + encUint(passportId));
+  const w = (i) => word(data, i);
+  const raw = {
+    owner: toAddr(w(0)), agent: toAddr(w(1)),
+    singleLimit: toBig(w(2)), dailyLimit: toBig(w(3)), spentToday: toBig(w(4)),
+    currentDay: toBig(w(5)),
+    spentTotal: toBig(w(6)), expiry: toBig(w(7)),
+    revoked: toBig(w(8)) === 1n, logRejections: toBig(w(9)) === 1n, balance: toBig(w(10)),
+  };
+  // getPassport returns the raw stored struct: on a fresh UTC day its
+  // spentToday is stale until the day's first transaction rolls it over.
+  // Display the effective value (same rule as the contract's _effSpent).
+  const todayUtc = BigInt(Math.floor(Date.now() / 86400000));
+  passport = { ...raw, spentToday: raw.currentDay === todayUtc ? raw.spentToday : 0n };
+  const rem = await call(CONFIG.vault, SEL.remainingAllowance + encUint(passportId));
+  const remaining = BigInt(rem);
+  document.getElementById("balance").textContent = fmt(passport.balance);
+  document.getElementById("remaining").textContent = fmt(remaining);
+  document.getElementById("spentToday").textContent = fmt(passport.spentToday);
+  document.getElementById("dailyLimit").textContent = fmt(passport.dailyLimit);
+  document.getElementById("spentTotal").textContent = fmt(passport.spentTotal);
+  document.getElementById("singleLimit").textContent = fmt(passport.singleLimit);
+  document.getElementById("dayBar").style.width =
+    (passport.dailyLimit === 0n ? 0 : Math.min(100, Number(passport.spentToday * 100n / passport.dailyLimit))) + "%";
+  const pill = document.getElementById("statusPill");
+  pill.textContent = passport.revoked ? `护照 #${passportId} · 已熔断` : `护照 #${passportId} · 有效`;
+  pill.className = "pill " + (passport.revoked ? "bad" : "ok");
+  document.getElementById("logToggle").checked = passport.logRejections;
+  document.getElementById("singleIn").value = fmt(passport.singleLimit);
+  document.getElementById("dailyIn").value = fmt(passport.dailyLimit);
+  document.getElementById("revokeBtn").disabled = passport.revoked;
+  document.getElementById("p1btn").style.outline = passportId === 1 ? "2px solid var(--acc)" : "";
+  document.getElementById("p2btn").style.outline = passportId === 2 ? "2px solid var(--acc)" : "";
+}
+
+// Monad's public RPC limits eth_getLogs to a 100-block range per call
+// (error -32614) — so all log reads go through this chunked scanner.
+// First load scans a bounded recent window; refreshes scan forward from a
+// watermark, which keeps the live feed cheap (Monad does ~20 blocks / 8 s).
+// Two-tier window. FAST is what the first paint waits for: enough recent
+// history to show the live feed and today's events, cheap enough to finish
+// before the public RPC pushes back. FULL is the deeper backfill, fetched in
+// the background afterwards so the stage never sits on a spinner.
+const FAST_WINDOW = 600;   // ~4 minutes of blocks (6 chunks per topic)
+const INITIAL_WINDOW = 6000; // full backfill, ~40 minutes
+let scanWatermark = 0;        // feeds (PaymentExecuted / PaymentRejected)
+let payeeWatermark = 0;       // whitelist events — separate scan cursor
+let payeeWatermarkPassport = 0;
+let backfilled = { feeds: 0, payees: 0 }; // passport id whose deep scan finished
+
+// Concurrency is deliberately low. A single eth_getLogs on the public endpoint
+// takes 2.7–8.3 s (measured 2026-11-21) and bursts trigger 429s, so fanning out
+// 6–8 at a time made the whole scan slower than doing them a few at a time.
+async function getLogsChunked(topic0, from, to, chunkSize = 100, concurrency = 3) {
+  const out = [];
+  const chunks = [];
+  for (let s = from; s <= to; s += chunkSize) chunks.push([s, Math.min(s + chunkSize - 1, to)]);
+  for (let i = 0; i < chunks.length; i += concurrency) {
+    const batch = chunks.slice(i, i + concurrency);
+    const results = await Promise.all(batch.map(([s, e]) =>
+      rpc("eth_getLogs", [{ address: CONFIG.vault,
+        fromBlock: "0x" + s.toString(16), toBlock: "0x" + e.toString(16),
+        topics: [topic0, "0x" + encUint(passportId)] }]).catch(() => [])));
+    for (const r of results) out.push(...r);
+  }
+  return out;
+}
+
+async function loadPayees() {
+  const addrs = new Set(Object.keys(KNOWN).filter((a) => a !== passport.owner.toLowerCase() && a !== passport.agent.toLowerCase()));
+  try {
+    const latest = parseInt(await rpc("eth_blockNumber", []), 16);
+    // Incremental scan, same idea as loadFeeds. Scanning the full 6000-block
+    // window on every 4-second refresh cost ~30 req/s (2 topics x 61 chunks)
+    // against a ~20 req/s public limit — the console rate-limited itself.
+    // First pass (or passport switch) scans the window; afterwards only the
+    // new blocks. (2026-11-21)
+    const freshPassport = payeeWatermarkPassport !== passportId;
+    if (freshPassport) { payeeWatermark = 0; payeeWatermarkPassport = passportId; backfilled.payees = 0; }
+    const from = payeeWatermark > 0
+      ? payeeWatermark + 1
+      : Math.max(0, latest - FAST_WINDOW);
+    if (from <= latest) {
+      for (const topic of [TOPIC.payeeAdded, TOPIC.payeeRemoved]) {
+        const logs = await getLogsChunked(topic, from, latest);
+        for (const l of logs) addrs.add(toAddr(l.data.slice(2, 66)).toLowerCase());
+      }
+      payeeWatermark = latest;
+    }
+  } catch (e) { console.warn("payee scan skipped:", e?.message || e); }
+  const rows = [];
+  for (const a of addrs) {
+    const res = await call(CONFIG.vault, SEL.isPayee + encUint(passportId) + encAddr(a));
+    const inList = BigInt(res) === 1n;
+    const k = KNOWN[a];
+    rows.push(`<div class="row" style="justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line)">
+      <span>${k ? `<span class="tag ${k.tag}">${k.name.split("（")[0]}</span> ` : ""}<span class="mono">${a}</span></span>
+      <span class="row"><span class="pill ${inList ? "ok" : "bad"}">${inList ? "白名单内" : "不在白名单"}</span>
+      <button data-payee="${a}" data-in="${inList ? 1 : 0}" class="payeeToggle">${inList ? "移除" : "加入"}</button></span></div>`);
+  }
+  document.getElementById("payeeList").innerHTML = rows.join("") || "<div class='muted'>无</div>";
+  document.querySelectorAll(".payeeToggle").forEach((b) => b.onclick = () =>
+    sendTx(CONFIG.vault, (b.dataset.in === "1" ? SEL.removePayee : SEL.addPayee) + encUint(passportId) + encAddr(b.dataset.payee), "白名单已更新"));
+}
+
+let feedCache = { executed: [], rejected: [], forPassport: 0 };
+async function loadFeeds() {
+  const latest = parseInt(await rpc("eth_blockNumber", []), 16);
+  const freshPassport = feedCache.forPassport !== passportId;
+  if (freshPassport) { feedCache = { executed: [], rejected: [], forPassport: passportId }; backfilled.feeds = 0; }
+  const from = !freshPassport && scanWatermark > 0
+    ? scanWatermark + 1
+    : Math.max(0, latest - FAST_WINDOW);
+  if (from <= latest) {
+    const [exNew, rjNew] = await Promise.all([
+      getLogsChunked(TOPIC.executed, from, latest),
+      getLogsChunked(TOPIC.rejected, from, latest),
+    ]);
+    feedCache.executed.push(...exNew);
+    feedCache.rejected.push(...rjNew);
+    scanWatermark = latest;
+  }
+  loadFeedsRenderOnly();
+}
+
+// Render the cached feed/audit tables without touching the chain. Split out so
+// the background backfill can repaint after it appends older events.
+function loadFeedsRenderOnly() {
+  const exLogs = feedCache.executed;
+  const rjLogs = feedCache.rejected;
+  const rows = [...exLogs].reverse().slice(0, 12).map((l) => {
+    const payee = toAddr(l.topics[2]);
+    const ref = l.topics[3];
+    const amount = toBig(l.data.slice(2, 66));
+    return `<tr><td class="muted">#${parseInt(l.blockNumber, 16)}</td>
+      <td>${label(payee)} <span class="mono muted">${short(payee)}</span></td>
+      <td><b>${fmt(amount)}</b> USDC</td>
+      <td class="mono muted">${ref.slice(0, 10)}…</td>
+      <td><a href="${CONFIG.explorer}/tx/${l.transactionHash}" target="_blank">查看 ↗</a></td></tr>`;
+  });
+  document.getElementById("feedBody").innerHTML = rows.join("") || "<tr><td colspan='5' class='muted'>暂无付款</td></tr>";
+
+  // rjLogs already loaded via the chunked scanner above
+  const rrows = [...rjLogs].reverse().slice(0, 8).map((l) => {
+    const payee = toAddr(l.topics[2]);
+    const amount = toBig(l.data.slice(2, 66));
+    const code = Number(toBig(l.data.slice(66, 130)));
+    return `<tr><td>${label(payee)}</td><td>${fmt(amount)}</td><td><span class="pill bad">${REASONS[code] || code}</span></td></tr>`;
+  });
+  document.getElementById("auditBody").innerHTML = rrows.join("") || "<tr><td colspan='3' class='muted'>暂无（或审计开关未开）</td></tr>";
+}
+
+// Deep backfill: once the fast paint is up, quietly walk the older window so
+// history that falls outside it still appears (payments made earlier today,
+// older whitelist additions). Runs in small batches with pauses so it never
+// competes with the live refresh for rate-limit budget.
+async function backfillOnce() {
+  const id = passportId;
+  const needFeeds = backfilled.feeds !== id;
+  const needPayees = backfilled.payees !== id;
+  if (!needFeeds && !needPayees) return;
+  let latest;
+  try { latest = parseInt(await rpc("eth_blockNumber", []), 16); } catch { return; }
+  const deepFrom = Math.max(0, latest - INITIAL_WINDOW);
+  const fastFrom = Math.max(0, latest - FAST_WINDOW);
+  if (deepFrom >= fastFrom) { backfilled.feeds = id; backfilled.payees = id; return; }
+
+  try {
+    if (needFeeds) {
+      const [ex, rj] = await Promise.all([
+        getLogsChunked(TOPIC.executed, deepFrom, fastFrom - 1, 100, 2),
+        getLogsChunked(TOPIC.rejected, deepFrom, fastFrom - 1, 100, 2),
+      ]);
+      if (id !== passportId) return; // switched passports mid-scan
+      feedCache.executed.push(...ex);
+      feedCache.rejected.push(...rj);
+      backfilled.feeds = id;
+      loadFeedsRenderOnly();
+    }
+    if (needPayees) {
+      await loadPayees();               // now uses the fast watermark, cheap
+      backfilled.payees = id;
+    }
+  } catch (e) { /* retry on a later tick */ }
+}
+
+let refreshing = false;
+let lastRefreshErrAt = 0;
+async function refresh() {
+  // Re-entrancy guard: a slow RPC round must not stack up refresh cycles
+  // (that is what pushed the console past the public rate limit).
+  if (refreshing) return;
+  refreshing = true;
+  const hadData = feedCache.forPassport === passportId && feedCache.executed.length + feedCache.rejected.length > 0;
+  try { await loadPassport(); await loadPayees(); await loadFeeds(); }
+  catch (e) {
+    // Don't flicker a toast every 4 s while the node is rate-limiting; the
+    // rpc() layer already retries and fails over. Surface at most once / 30 s.
+    const now = Date.now();
+    if (!e.limited || now - lastRefreshErrAt > 30000) {
+      lastRefreshErrAt = now;
+      toast("读取链上数据失败：" + e.message);
+    }
+  } finally {
+    refreshing = false;
+    // Kick the deep backfill on a later tick, only once the fast paint has
+    // something on screen. It re-checks its own "already done" flags.
+    if (hadData) setTimeout(() => backfillOnce(), 1500);
+  }
+}
+
+// ---- writes (owner wallet via window.ethereum) ----
+async function sendTx(to, data, okMsg) {
+  if (!account) { toast("先连接主人钱包再操作"); return null; }
+  try {
+    const hash = await window.ethereum.request({ method: "eth_sendTransaction",
+      params: [{ from: account, to, data, chainId: "0x" + CONFIG.chainId.toString(16) }] });
+    toast("已发送，等待确认… " + hash.slice(0, 14) + "…");
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const rc = await rpc("eth_getTransactionReceipt", [hash]).catch(() => null);
+      if (rc) {
+        if (rc.status === "0x1") { toast(okMsg + " ✓"); setTimeout(refresh, 800); return hash; }
+        toast("交易被链上拒绝（revert）——多半是连接的钱包不是主人，或违反了护照规则"); return null;
+      }
+    }
+    toast("交易已发送但确认超时，可在浏览器查看：" + hash);
+    return hash;
+  } catch (e) { toast("发送失败：" + (e.message || e)); return null; }
+}
+
+document.getElementById("refreshBtn").onclick = async () => { await refresh(); toast("已刷新到最新链上状态"); };
+document.getElementById("connectBtn").onclick = async () => {
+  if (!window.ethereum) { toast("未检测到钱包扩展：请在装有 MetaMask 的浏览器打开，并导入主人私钥"); return; }
+  const accs = await window.ethereum.request({ method: "eth_requestAccounts" });
+  account = accs[0];
+  const btn = document.getElementById("connectBtn");
+  btn.textContent = short(account) + (passport && account.toLowerCase() === passport.owner.toLowerCase() ? "（主人）" : "（非主人，写操作会被拒）");
+};
+document.getElementById("p1btn").onclick = () => { passportId = 1; refresh(); };
+document.getElementById("p2btn").onclick = () => { passportId = 2; refresh(); };
+document.getElementById("depositBtn").onclick = async () => {
+  if (!account) { toast("先连接主人钱包再操作"); return; }
+  const amt = BigInt(Math.round(Number(document.getElementById("depositAmt").value) * 1e6));
+  if (amt <= 0n) { toast("金额要大于 0"); return; }
+  const allow = BigInt(await call(CONFIG.usdc, SEL.allowance + encAddr(account) + encAddr(CONFIG.vault)));
+  if (allow < amt) {
+    const h = await sendTx(CONFIG.usdc, SEL.approve + encAddr(CONFIG.vault) + encUint(amt), "授权完成");
+    if (!h) return;
+  }
+  await sendTx(CONFIG.vault, SEL.depositUSDC + encUint(passportId) + encUint(amt), "存入成功");
+};
+document.getElementById("withdrawBtn").onclick = async () => {
+  const amt = BigInt(Math.round(Number(document.getElementById("depositAmt").value) * 1e6));
+  if (amt <= 0n) { toast("在左侧金额框填要提取的 USDC 数"); return; }
+  await sendTx(CONFIG.vault, SEL.withdraw + encUint(passportId) + encUint(amt), "提取成功");
+};
+document.getElementById("limitsBtn").onclick = async () => {
+  const s = BigInt(Math.round(Number(document.getElementById("singleIn").value) * 1e6));
+  const d = BigInt(Math.round(Number(document.getElementById("dailyIn").value) * 1e6));
+  if (s > d) { toast("单笔上限不能大于日限额"); return; }
+  await sendTx(CONFIG.vault, SEL.updateLimits + encUint(passportId) + encUint(s) + encUint(d), "限额已更新");
+};
+document.getElementById("addPayeeBtn").onclick = async () => {
+  const a = document.getElementById("newPayee").value.trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(a)) { toast("地址格式不对"); return; }
+  await sendTx(CONFIG.vault, SEL.addPayee + encUint(passportId) + encAddr(a), "已加入白名单");
+};
+document.getElementById("logToggle").onchange = async (e) => {
+  await sendTx(CONFIG.vault, SEL.setRejectionLogging + encUint(passportId) + encBool(e.target.checked), "审计开关已更新");
+};
+const dlg = document.getElementById("revokeDlg");
+document.getElementById("revokeBtn").onclick = () => {
+  document.getElementById("dlgPid").textContent = "#" + passportId;
+  document.getElementById("revokeAck").checked = false;
+  document.getElementById("revokeConfirm").disabled = true;
+  dlg.showModal();
+};
+document.getElementById("revokeAck").onchange = (e) => document.getElementById("revokeConfirm").disabled = !e.target.checked;
+document.getElementById("revokeCancel").onclick = () => dlg.close();
+document.getElementById("revokeConfirm").onclick = async () => {
+  dlg.close();
+  await sendTx(CONFIG.vault, SEL.revoke + encUint(passportId), "护照已熔断 ⛔");
+};
+
+document.getElementById("vaultShort").textContent = short(CONFIG.vault);
+refresh();
+// 6 s instead of 4 s: still feels live on stage (payments land within a couple
+// of blocks) while leaving headroom under the public RPC's ~20 req/s. With the
+// incremental payee scan the steady-state cost is ~4 requests per refresh.
+setInterval(refresh, 6000);
+</script>
+<script>
+/* qrcode-generator 1.4.4 (MIT, Kazuhiko Arase) — embedded for stage-mode QR, no CDN on stage */
+//---------------------------------------------------------------------
+//
+// QR Code Generator for JavaScript
+//
+// Copyright (c) 2009 Kazuhiko Arase
+//
+// URL: http://www.d-project.com/
+//
+// Licensed under the MIT license:
+//  http://www.opensource.org/licenses/mit-license.php
+//
+// The word 'QR Code' is registered trademark of
+// DENSO WAVE INCORPORATED
+//  http://www.denso-wave.com/qrcode/faqpatent-e.html
+//
+//---------------------------------------------------------------------
+
+var qrcode = function() {
+
+  //---------------------------------------------------------------------
+  // qrcode
+  //---------------------------------------------------------------------
+
+  /**
+   * qrcode
+   * @param typeNumber 1 to 40
+   * @param errorCorrectionLevel 'L','M','Q','H'
+   */
+  var qrcode = function(typeNumber, errorCorrectionLevel) {
+
+    var PAD0 = 0xEC;
+    var PAD1 = 0x11;
+
+    var _typeNumber = typeNumber;
+    var _errorCorrectionLevel = QRErrorCorrectionLevel[errorCorrectionLevel];
+    var _modules = null;
+    var _moduleCount = 0;
+    var _dataCache = null;
+    var _dataList = [];
+
+    var _this = {};
+
+    var makeImpl = function(test, maskPattern) {
+
+      _moduleCount = _typeNumber * 4 + 17;
+      _modules = function(moduleCount) {
+        var modules = new Array(moduleCount);
+        for (var row = 0; row < moduleCount; row += 1) {
+          modules[row] = new Array(moduleCount);
+          for (var col = 0; col < moduleCount; col += 1) {
+            modules[row][col] = null;
+          }
+        }
+        return modules;
+      }(_moduleCount);
+
+      setupPositionProbePattern(0, 0);
+      setupPositionProbePattern(_moduleCount - 7, 0);
+      setupPositionProbePattern(0, _moduleCount - 7);
+      setupPositionAdjustPattern();
+      setupTimingPattern();
+      setupTypeInfo(test, maskPattern);
+
+      if (_typeNumber >= 7) {
+        setupTypeNumber(test);
+      }
+
+      if (_dataCache == null) {
+        _dataCache = createData(_typeNumber, _errorCorrectionLevel, _dataList);
+      }
+
+      mapData(_dataCache, maskPattern);
+    };
+
+    var setupPositionProbePattern = function(row, col) {
+
+      for (var r = -1; r <= 7; r += 1) {
+
+        if (row + r <= -1 || _moduleCount <= row + r) continue;
+
+        for (var c = -1; c <= 7; c += 1) {
+
+          if (col + c <= -1 || _moduleCount <= col + c) continue;
+
+          if ( (0 <= r && r <= 6 && (c == 0 || c == 6) )
+              || (0 <= c && c <= 6 && (r == 0 || r == 6) )
+              || (2 <= r && r <= 4 && 2 <= c && c <= 4) ) {
+            _modules[row + r][col + c] = true;
+          } else {
+            _modules[row + r][col + c] = false;
+          }
+        }
+      }
+    };
+
+    var getBestMaskPattern = function() {
+
+      var minLostPoint = 0;
+      var pattern = 0;
+
+      for (var i = 0; i < 8; i += 1) {
+
+        makeImpl(true, i);
+
+        var lostPoint = QRUtil.getLostPoint(_this);
+
+        if (i == 0 || minLostPoint > lostPoint) {
+          minLostPoint = lostPoint;
+          pattern = i;
+        }
+      }
+
+      return pattern;
+    };
+
+    var setupTimingPattern = function() {
+
+      for (var r = 8; r < _moduleCount - 8; r += 1) {
+        if (_modules[r][6] != null) {
+          continue;
+        }
+        _modules[r][6] = (r % 2 == 0);
+      }
+
+      for (var c = 8; c < _moduleCount - 8; c += 1) {
+        if (_modules[6][c] != null) {
+          continue;
+        }
+        _modules[6][c] = (c % 2 == 0);
+      }
+    };
+
+    var setupPositionAdjustPattern = function() {
+
+      var pos = QRUtil.getPatternPosition(_typeNumber);
+
+      for (var i = 0; i < pos.length; i += 1) {
+
+        for (var j = 0; j < pos.length; j += 1) {
+
+          var row = pos[i];
+          var col = pos[j];
+
+          if (_modules[row][col] != null) {
+            continue;
+          }
+
+          for (var r = -2; r <= 2; r += 1) {
+
+            for (var c = -2; c <= 2; c += 1) {
+
+              if (r == -2 || r == 2 || c == -2 || c == 2
+                  || (r == 0 && c == 0) ) {
+                _modules[row + r][col + c] = true;
+              } else {
+                _modules[row + r][col + c] = false;
+              }
+            }
+          }
+        }
+      }
+    };
+
+    var setupTypeNumber = function(test) {
+
+      var bits = QRUtil.getBCHTypeNumber(_typeNumber);
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[Math.floor(i / 3)][i % 3 + _moduleCount - 8 - 3] = mod;
+      }
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[i % 3 + _moduleCount - 8 - 3][Math.floor(i / 3)] = mod;
+      }
+    };
+
+    var setupTypeInfo = function(test, maskPattern) {
+
+      var data = (_errorCorrectionLevel << 3) | maskPattern;
+      var bits = QRUtil.getBCHTypeInfo(data);
+
+      // vertical
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 6) {
+          _modules[i][8] = mod;
+        } else if (i < 8) {
+          _modules[i + 1][8] = mod;
+        } else {
+          _modules[_moduleCount - 15 + i][8] = mod;
+        }
+      }
+
+      // horizontal
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 8) {
+          _modules[8][_moduleCount - i - 1] = mod;
+        } else if (i < 9) {
+          _modules[8][15 - i - 1 + 1] = mod;
+        } else {
+          _modules[8][15 - i - 1] = mod;
+        }
+      }
+
+      // fixed module
+      _modules[_moduleCount - 8][8] = (!test);
+    };
+
+    var mapData = function(data, maskPattern) {
+
+      var inc = -1;
+      var row = _moduleCount - 1;
+      var bitIndex = 7;
+      var byteIndex = 0;
+      var maskFunc = QRUtil.getMaskFunction(maskPattern);
+
+      for (var col = _moduleCount - 1; col > 0; col -= 2) {
+
+        if (col == 6) col -= 1;
+
+        while (true) {
+
+          for (var c = 0; c < 2; c += 1) {
+
+            if (_modules[row][col - c] == null) {
+
+              var dark = false;
+
+              if (byteIndex < data.length) {
+                dark = ( ( (data[byteIndex] >>> bitIndex) & 1) == 1);
+              }
+
+              var mask = maskFunc(row, col - c);
+
+              if (mask) {
+                dark = !dark;
+              }
+
+              _modules[row][col - c] = dark;
+              bitIndex -= 1;
+
+              if (bitIndex == -1) {
+                byteIndex += 1;
+                bitIndex = 7;
+              }
+            }
+          }
+
+          row += inc;
+
+          if (row < 0 || _moduleCount <= row) {
+            row -= inc;
+            inc = -inc;
+            break;
+          }
+        }
+      }
+    };
+
+    var createBytes = function(buffer, rsBlocks) {
+
+      var offset = 0;
+
+      var maxDcCount = 0;
+      var maxEcCount = 0;
+
+      var dcdata = new Array(rsBlocks.length);
+      var ecdata = new Array(rsBlocks.length);
+
+      for (var r = 0; r < rsBlocks.length; r += 1) {
+
+        var dcCount = rsBlocks[r].dataCount;
+        var ecCount = rsBlocks[r].totalCount - dcCount;
+
+        maxDcCount = Math.max(maxDcCount, dcCount);
+        maxEcCount = Math.max(maxEcCount, ecCount);
+
+        dcdata[r] = new Array(dcCount);
+
+        for (var i = 0; i < dcdata[r].length; i += 1) {
+          dcdata[r][i] = 0xff & buffer.getBuffer()[i + offset];
+        }
+        offset += dcCount;
+
+        var rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
+        var rawPoly = qrPolynomial(dcdata[r], rsPoly.getLength() - 1);
+
+        var modPoly = rawPoly.mod(rsPoly);
+        ecdata[r] = new Array(rsPoly.getLength() - 1);
+        for (var i = 0; i < ecdata[r].length; i += 1) {
+          var modIndex = i + modPoly.getLength() - ecdata[r].length;
+          ecdata[r][i] = (modIndex >= 0)? modPoly.getAt(modIndex) : 0;
+        }
+      }
+
+      var totalCodeCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalCodeCount += rsBlocks[i].totalCount;
+      }
+
+      var data = new Array(totalCodeCount);
+      var index = 0;
+
+      for (var i = 0; i < maxDcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < dcdata[r].length) {
+            data[index] = dcdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      for (var i = 0; i < maxEcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < ecdata[r].length) {
+            data[index] = ecdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      return data;
+    };
+
+    var createData = function(typeNumber, errorCorrectionLevel, dataList) {
+
+      var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectionLevel);
+
+      var buffer = qrBitBuffer();
+
+      for (var i = 0; i < dataList.length; i += 1) {
+        var data = dataList[i];
+        buffer.put(data.getMode(), 4);
+        buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+        data.write(buffer);
+      }
+
+      // calc num max data.
+      var totalDataCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalDataCount += rsBlocks[i].dataCount;
+      }
+
+      if (buffer.getLengthInBits() > totalDataCount * 8) {
+        throw 'code length overflow. ('
+          + buffer.getLengthInBits()
+          + '>'
+          + totalDataCount * 8
+          + ')';
+      }
+
+      // end code
+      if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) {
+        buffer.put(0, 4);
+      }
+
+      // padding
+      while (buffer.getLengthInBits() % 8 != 0) {
+        buffer.putBit(false);
+      }
+
+      // padding
+      while (true) {
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD0, 8);
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD1, 8);
+      }
+
+      return createBytes(buffer, rsBlocks);
+    };
+
+    _this.addData = function(data, mode) {
+
+      mode = mode || 'Byte';
+
+      var newData = null;
+
+      switch(mode) {
+      case 'Numeric' :
+        newData = qrNumber(data);
+        break;
+      case 'Alphanumeric' :
+        newData = qrAlphaNum(data);
+        break;
+      case 'Byte' :
+        newData = qr8BitByte(data);
+        break;
+      case 'Kanji' :
+        newData = qrKanji(data);
+        break;
+      default :
+        throw 'mode:' + mode;
+      }
+
+      _dataList.push(newData);
+      _dataCache = null;
+    };
+
+    _this.isDark = function(row, col) {
+      if (row < 0 || _moduleCount <= row || col < 0 || _moduleCount <= col) {
+        throw row + ',' + col;
+      }
+      return _modules[row][col];
+    };
+
+    _this.getModuleCount = function() {
+      return _moduleCount;
+    };
+
+    _this.make = function() {
+      if (_typeNumber < 1) {
+        var typeNumber = 1;
+
+        for (; typeNumber < 40; typeNumber++) {
+          var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, _errorCorrectionLevel);
+          var buffer = qrBitBuffer();
+
+          for (var i = 0; i < _dataList.length; i++) {
+            var data = _dataList[i];
+            buffer.put(data.getMode(), 4);
+            buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+            data.write(buffer);
+          }
+
+          var totalDataCount = 0;
+          for (var i = 0; i < rsBlocks.length; i++) {
+            totalDataCount += rsBlocks[i].dataCount;
+          }
+
+          if (buffer.getLengthInBits() <= totalDataCount * 8) {
+            break;
+          }
+        }
+
+        _typeNumber = typeNumber;
+      }
+
+      makeImpl(false, getBestMaskPattern() );
+    };
+
+    _this.createTableTag = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var qrHtml = '';
+
+      qrHtml += '<table style="';
+      qrHtml += ' border-width: 0px; border-style: none;';
+      qrHtml += ' border-collapse: collapse;';
+      qrHtml += ' padding: 0px; margin: ' + margin + 'px;';
+      qrHtml += '">';
+      qrHtml += '<tbody>';
+
+      for (var r = 0; r < _this.getModuleCount(); r += 1) {
+
+        qrHtml += '<tr>';
+
+        for (var c = 0; c < _this.getModuleCount(); c += 1) {
+          qrHtml += '<td style="';
+          qrHtml += ' border-width: 0px; border-style: none;';
+          qrHtml += ' border-collapse: collapse;';
+          qrHtml += ' padding: 0px; margin: 0px;';
+          qrHtml += ' width: ' + cellSize + 'px;';
+          qrHtml += ' height: ' + cellSize + 'px;';
+          qrHtml += ' background-color: ';
+          qrHtml += _this.isDark(r, c)? '#000000' : '#ffffff';
+          qrHtml += ';';
+          qrHtml += '"/>';
+        }
+
+        qrHtml += '</tr>';
+      }
+
+      qrHtml += '</tbody>';
+      qrHtml += '</table>';
+
+      return qrHtml;
+    };
+
+    _this.createSvgTag = function(cellSize, margin, alt, title) {
+
+      var opts = {};
+      if (typeof arguments[0] == 'object') {
+        // Called by options.
+        opts = arguments[0];
+        // overwrite cellSize and margin.
+        cellSize = opts.cellSize;
+        margin = opts.margin;
+        alt = opts.alt;
+        title = opts.title;
+      }
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      // Compose alt property surrogate
+      alt = (typeof alt === 'string') ? {text: alt} : alt || {};
+      alt.text = alt.text || null;
+      alt.id = (alt.text) ? alt.id || 'qrcode-description' : null;
+
+      // Compose title property surrogate
+      title = (typeof title === 'string') ? {text: title} : title || {};
+      title.text = title.text || null;
+      title.id = (title.text) ? title.id || 'qrcode-title' : null;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var c, mc, r, mr, qrSvg='', rect;
+
+      rect = 'l' + cellSize + ',0 0,' + cellSize +
+        ' -' + cellSize + ',0 0,-' + cellSize + 'z ';
+
+      qrSvg += '<svg version="1.1" xmlns="http://www.w3.org/2000/svg"';
+      qrSvg += !opts.scalable ? ' width="' + size + 'px" height="' + size + 'px"' : '';
+      qrSvg += ' viewBox="0 0 ' + size + ' ' + size + '" ';
+      qrSvg += ' preserveAspectRatio="xMinYMin meet"';
+      qrSvg += (title.text || alt.text) ? ' role="img" aria-labelledby="' +
+          escapeXml([title.id, alt.id].join(' ').trim() ) + '"' : '';
+      qrSvg += '>';
+      qrSvg += (title.text) ? '<title id="' + escapeXml(title.id) + '">' +
+          escapeXml(title.text) + '</title>' : '';
+      qrSvg += (alt.text) ? '<description id="' + escapeXml(alt.id) + '">' +
+          escapeXml(alt.text) + '</description>' : '';
+      qrSvg += '<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>';
+      qrSvg += '<path d="';
+
+      for (r = 0; r < _this.getModuleCount(); r += 1) {
+        mr = r * cellSize + margin;
+        for (c = 0; c < _this.getModuleCount(); c += 1) {
+          if (_this.isDark(r, c) ) {
+            mc = c*cellSize+margin;
+            qrSvg += 'M' + mc + ',' + mr + rect;
+          }
+        }
+      }
+
+      qrSvg += '" stroke="transparent" fill="black"/>';
+      qrSvg += '</svg>';
+
+      return qrSvg;
+    };
+
+    _this.createDataURL = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      return createDataURL(size, size, function(x, y) {
+        if (min <= x && x < max && min <= y && y < max) {
+          var c = Math.floor( (x - min) / cellSize);
+          var r = Math.floor( (y - min) / cellSize);
+          return _this.isDark(r, c)? 0 : 1;
+        } else {
+          return 1;
+        }
+      } );
+    };
+
+    _this.createImgTag = function(cellSize, margin, alt) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+
+      var img = '';
+      img += '<img';
+      img += '\u0020src="';
+      img += _this.createDataURL(cellSize, margin);
+      img += '"';
+      img += '\u0020width="';
+      img += size;
+      img += '"';
+      img += '\u0020height="';
+      img += size;
+      img += '"';
+      if (alt) {
+        img += '\u0020alt="';
+        img += escapeXml(alt);
+        img += '"';
+      }
+      img += '/>';
+
+      return img;
+    };
+
+    var escapeXml = function(s) {
+      var escaped = '';
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charAt(i);
+        switch(c) {
+        case '<': escaped += '&lt;'; break;
+        case '>': escaped += '&gt;'; break;
+        case '&': escaped += '&amp;'; break;
+        case '"': escaped += '&quot;'; break;
+        default : escaped += c; break;
+        }
+      }
+      return escaped;
+    };
+
+    var _createHalfASCII = function(margin) {
+      var cellSize = 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r1, r2, p;
+
+      var blocks = {
+        '██': '█',
+        '█ ': '▀',
+        ' █': '▄',
+        '  ': ' '
+      };
+
+      var blocksLastLineNoMargin = {
+        '██': '▀',
+        '█ ': '▀',
+        ' █': ' ',
+        '  ': ' '
+      };
+
+      var ascii = '';
+      for (y = 0; y < size; y += 2) {
+        r1 = Math.floor((y - min) / cellSize);
+        r2 = Math.floor((y + 1 - min) / cellSize);
+        for (x = 0; x < size; x += 1) {
+          p = '█';
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r1, Math.floor((x - min) / cellSize))) {
+            p = ' ';
+          }
+
+          if (min <= x && x < max && min <= y+1 && y+1 < max && _this.isDark(r2, Math.floor((x - min) / cellSize))) {
+            p += ' ';
+          }
+          else {
+            p += '█';
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          ascii += (margin < 1 && y+1 >= max) ? blocksLastLineNoMargin[p] : blocks[p];
+        }
+
+        ascii += '\n';
+      }
+
+      if (size % 2 && margin > 0) {
+        return ascii.substring(0, ascii.length - size - 1) + Array(size+1).join('▀');
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.createASCII = function(cellSize, margin) {
+      cellSize = cellSize || 1;
+
+      if (cellSize < 2) {
+        return _createHalfASCII(margin);
+      }
+
+      cellSize -= 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r, p;
+
+      var white = Array(cellSize+1).join('██');
+      var black = Array(cellSize+1).join('  ');
+
+      var ascii = '';
+      var line = '';
+      for (y = 0; y < size; y += 1) {
+        r = Math.floor( (y - min) / cellSize);
+        line = '';
+        for (x = 0; x < size; x += 1) {
+          p = 1;
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r, Math.floor((x - min) / cellSize))) {
+            p = 0;
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          line += p ? white : black;
+        }
+
+        for (r = 0; r < cellSize; r += 1) {
+          ascii += line + '\n';
+        }
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.renderTo2dContext = function(context, cellSize) {
+      cellSize = cellSize || 2;
+      var length = _this.getModuleCount();
+      for (var row = 0; row < length; row++) {
+        for (var col = 0; col < length; col++) {
+          context.fillStyle = _this.isDark(row, col) ? 'black' : 'white';
+          context.fillRect(row * cellSize, col * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrcode.stringToBytes
+  //---------------------------------------------------------------------
+
+  qrcode.stringToBytesFuncs = {
+    'default' : function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        bytes.push(c & 0xff);
+      }
+      return bytes;
+    }
+  };
+
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['default'];
+
+  //---------------------------------------------------------------------
+  // qrcode.createStringToBytes
+  //---------------------------------------------------------------------
+
+  /**
+   * @param unicodeData base64 string of byte array.
+   * [16bit Unicode],[16bit Bytes], ...
+   * @param numChars
+   */
+  qrcode.createStringToBytes = function(unicodeData, numChars) {
+
+    // create conversion map.
+
+    var unicodeMap = function() {
+
+      var bin = base64DecodeInputStream(unicodeData);
+      var read = function() {
+        var b = bin.read();
+        if (b == -1) throw 'eof';
+        return b;
+      };
+
+      var count = 0;
+      var unicodeMap = {};
+      while (true) {
+        var b0 = bin.read();
+        if (b0 == -1) break;
+        var b1 = read();
+        var b2 = read();
+        var b3 = read();
+        var k = String.fromCharCode( (b0 << 8) | b1);
+        var v = (b2 << 8) | b3;
+        unicodeMap[k] = v;
+        count += 1;
+      }
+      if (count != numChars) {
+        throw count + ' != ' + numChars;
+      }
+
+      return unicodeMap;
+    }();
+
+    var unknownChar = '?'.charCodeAt(0);
+
+    return function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        if (c < 128) {
+          bytes.push(c);
+        } else {
+          var b = unicodeMap[s.charAt(i)];
+          if (typeof b == 'number') {
+            if ( (b & 0xff) == b) {
+              // 1byte
+              bytes.push(b);
+            } else {
+              // 2bytes
+              bytes.push(b >>> 8);
+              bytes.push(b & 0xff);
+            }
+          } else {
+            bytes.push(unknownChar);
+          }
+        }
+      }
+      return bytes;
+    };
+  };
+
+  //---------------------------------------------------------------------
+  // QRMode
+  //---------------------------------------------------------------------
+
+  var QRMode = {
+    MODE_NUMBER :    1 << 0,
+    MODE_ALPHA_NUM : 1 << 1,
+    MODE_8BIT_BYTE : 1 << 2,
+    MODE_KANJI :     1 << 3
+  };
+
+  //---------------------------------------------------------------------
+  // QRErrorCorrectionLevel
+  //---------------------------------------------------------------------
+
+  var QRErrorCorrectionLevel = {
+    L : 1,
+    M : 0,
+    Q : 3,
+    H : 2
+  };
+
+  //---------------------------------------------------------------------
+  // QRMaskPattern
+  //---------------------------------------------------------------------
+
+  var QRMaskPattern = {
+    PATTERN000 : 0,
+    PATTERN001 : 1,
+    PATTERN010 : 2,
+    PATTERN011 : 3,
+    PATTERN100 : 4,
+    PATTERN101 : 5,
+    PATTERN110 : 6,
+    PATTERN111 : 7
+  };
+
+  //---------------------------------------------------------------------
+  // QRUtil
+  //---------------------------------------------------------------------
+
+  var QRUtil = function() {
+
+    var PATTERN_POSITION_TABLE = [
+      [],
+      [6, 18],
+      [6, 22],
+      [6, 26],
+      [6, 30],
+      [6, 34],
+      [6, 22, 38],
+      [6, 24, 42],
+      [6, 26, 46],
+      [6, 28, 50],
+      [6, 30, 54],
+      [6, 32, 58],
+      [6, 34, 62],
+      [6, 26, 46, 66],
+      [6, 26, 48, 70],
+      [6, 26, 50, 74],
+      [6, 30, 54, 78],
+      [6, 30, 56, 82],
+      [6, 30, 58, 86],
+      [6, 34, 62, 90],
+      [6, 28, 50, 72, 94],
+      [6, 26, 50, 74, 98],
+      [6, 30, 54, 78, 102],
+      [6, 28, 54, 80, 106],
+      [6, 32, 58, 84, 110],
+      [6, 30, 58, 86, 114],
+      [6, 34, 62, 90, 118],
+      [6, 26, 50, 74, 98, 122],
+      [6, 30, 54, 78, 102, 126],
+      [6, 26, 52, 78, 104, 130],
+      [6, 30, 56, 82, 108, 134],
+      [6, 34, 60, 86, 112, 138],
+      [6, 30, 58, 86, 114, 142],
+      [6, 34, 62, 90, 118, 146],
+      [6, 30, 54, 78, 102, 126, 150],
+      [6, 24, 50, 76, 102, 128, 154],
+      [6, 28, 54, 80, 106, 132, 158],
+      [6, 32, 58, 84, 110, 136, 162],
+      [6, 26, 54, 82, 110, 138, 166],
+      [6, 30, 58, 86, 114, 142, 170]
+    ];
+    var G15 = (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0);
+    var G18 = (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0);
+    var G15_MASK = (1 << 14) | (1 << 12) | (1 << 10) | (1 << 4) | (1 << 1);
+
+    var _this = {};
+
+    var getBCHDigit = function(data) {
+      var digit = 0;
+      while (data != 0) {
+        digit += 1;
+        data >>>= 1;
+      }
+      return digit;
+    };
+
+    _this.getBCHTypeInfo = function(data) {
+      var d = data << 10;
+      while (getBCHDigit(d) - getBCHDigit(G15) >= 0) {
+        d ^= (G15 << (getBCHDigit(d) - getBCHDigit(G15) ) );
+      }
+      return ( (data << 10) | d) ^ G15_MASK;
+    };
+
+    _this.getBCHTypeNumber = function(data) {
+      var d = data << 12;
+      while (getBCHDigit(d) - getBCHDigit(G18) >= 0) {
+        d ^= (G18 << (getBCHDigit(d) - getBCHDigit(G18) ) );
+      }
+      return (data << 12) | d;
+    };
+
+    _this.getPatternPosition = function(typeNumber) {
+      return PATTERN_POSITION_TABLE[typeNumber - 1];
+    };
+
+    _this.getMaskFunction = function(maskPattern) {
+
+      switch (maskPattern) {
+
+      case QRMaskPattern.PATTERN000 :
+        return function(i, j) { return (i + j) % 2 == 0; };
+      case QRMaskPattern.PATTERN001 :
+        return function(i, j) { return i % 2 == 0; };
+      case QRMaskPattern.PATTERN010 :
+        return function(i, j) { return j % 3 == 0; };
+      case QRMaskPattern.PATTERN011 :
+        return function(i, j) { return (i + j) % 3 == 0; };
+      case QRMaskPattern.PATTERN100 :
+        return function(i, j) { return (Math.floor(i / 2) + Math.floor(j / 3) ) % 2 == 0; };
+      case QRMaskPattern.PATTERN101 :
+        return function(i, j) { return (i * j) % 2 + (i * j) % 3 == 0; };
+      case QRMaskPattern.PATTERN110 :
+        return function(i, j) { return ( (i * j) % 2 + (i * j) % 3) % 2 == 0; };
+      case QRMaskPattern.PATTERN111 :
+        return function(i, j) { return ( (i * j) % 3 + (i + j) % 2) % 2 == 0; };
+
+      default :
+        throw 'bad maskPattern:' + maskPattern;
+      }
+    };
+
+    _this.getErrorCorrectPolynomial = function(errorCorrectLength) {
+      var a = qrPolynomial([1], 0);
+      for (var i = 0; i < errorCorrectLength; i += 1) {
+        a = a.multiply(qrPolynomial([1, QRMath.gexp(i)], 0) );
+      }
+      return a;
+    };
+
+    _this.getLengthInBits = function(mode, type) {
+
+      if (1 <= type && type < 10) {
+
+        // 1 - 9
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 10;
+        case QRMode.MODE_ALPHA_NUM : return 9;
+        case QRMode.MODE_8BIT_BYTE : return 8;
+        case QRMode.MODE_KANJI     : return 8;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 27) {
+
+        // 10 - 26
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 12;
+        case QRMode.MODE_ALPHA_NUM : return 11;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 10;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 41) {
+
+        // 27 - 40
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 14;
+        case QRMode.MODE_ALPHA_NUM : return 13;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 12;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else {
+        throw 'type:' + type;
+      }
+    };
+
+    _this.getLostPoint = function(qrcode) {
+
+      var moduleCount = qrcode.getModuleCount();
+
+      var lostPoint = 0;
+
+      // LEVEL1
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount; col += 1) {
+
+          var sameCount = 0;
+          var dark = qrcode.isDark(row, col);
+
+          for (var r = -1; r <= 1; r += 1) {
+
+            if (row + r < 0 || moduleCount <= row + r) {
+              continue;
+            }
+
+            for (var c = -1; c <= 1; c += 1) {
+
+              if (col + c < 0 || moduleCount <= col + c) {
+                continue;
+              }
+
+              if (r == 0 && c == 0) {
+                continue;
+              }
+
+              if (dark == qrcode.isDark(row + r, col + c) ) {
+                sameCount += 1;
+              }
+            }
+          }
+
+          if (sameCount > 5) {
+            lostPoint += (3 + sameCount - 5);
+          }
+        }
+      };
+
+      // LEVEL2
+
+      for (var row = 0; row < moduleCount - 1; row += 1) {
+        for (var col = 0; col < moduleCount - 1; col += 1) {
+          var count = 0;
+          if (qrcode.isDark(row, col) ) count += 1;
+          if (qrcode.isDark(row + 1, col) ) count += 1;
+          if (qrcode.isDark(row, col + 1) ) count += 1;
+          if (qrcode.isDark(row + 1, col + 1) ) count += 1;
+          if (count == 0 || count == 4) {
+            lostPoint += 3;
+          }
+        }
+      }
+
+      // LEVEL3
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount - 6; col += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row, col + 1)
+              &&  qrcode.isDark(row, col + 2)
+              &&  qrcode.isDark(row, col + 3)
+              &&  qrcode.isDark(row, col + 4)
+              && !qrcode.isDark(row, col + 5)
+              &&  qrcode.isDark(row, col + 6) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount - 6; row += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row + 1, col)
+              &&  qrcode.isDark(row + 2, col)
+              &&  qrcode.isDark(row + 3, col)
+              &&  qrcode.isDark(row + 4, col)
+              && !qrcode.isDark(row + 5, col)
+              &&  qrcode.isDark(row + 6, col) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      // LEVEL4
+
+      var darkCount = 0;
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount; row += 1) {
+          if (qrcode.isDark(row, col) ) {
+            darkCount += 1;
+          }
+        }
+      }
+
+      var ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;
+      lostPoint += ratio * 10;
+
+      return lostPoint;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // QRMath
+  //---------------------------------------------------------------------
+
+  var QRMath = function() {
+
+    var EXP_TABLE = new Array(256);
+    var LOG_TABLE = new Array(256);
+
+    // initialize tables
+    for (var i = 0; i < 8; i += 1) {
+      EXP_TABLE[i] = 1 << i;
+    }
+    for (var i = 8; i < 256; i += 1) {
+      EXP_TABLE[i] = EXP_TABLE[i - 4]
+        ^ EXP_TABLE[i - 5]
+        ^ EXP_TABLE[i - 6]
+        ^ EXP_TABLE[i - 8];
+    }
+    for (var i = 0; i < 255; i += 1) {
+      LOG_TABLE[EXP_TABLE[i] ] = i;
+    }
+
+    var _this = {};
+
+    _this.glog = function(n) {
+
+      if (n < 1) {
+        throw 'glog(' + n + ')';
+      }
+
+      return LOG_TABLE[n];
+    };
+
+    _this.gexp = function(n) {
+
+      while (n < 0) {
+        n += 255;
+      }
+
+      while (n >= 256) {
+        n -= 255;
+      }
+
+      return EXP_TABLE[n];
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrPolynomial
+  //---------------------------------------------------------------------
+
+  function qrPolynomial(num, shift) {
+
+    if (typeof num.length == 'undefined') {
+      throw num.length + '/' + shift;
+    }
+
+    var _num = function() {
+      var offset = 0;
+      while (offset < num.length && num[offset] == 0) {
+        offset += 1;
+      }
+      var _num = new Array(num.length - offset + shift);
+      for (var i = 0; i < num.length - offset; i += 1) {
+        _num[i] = num[i + offset];
+      }
+      return _num;
+    }();
+
+    var _this = {};
+
+    _this.getAt = function(index) {
+      return _num[index];
+    };
+
+    _this.getLength = function() {
+      return _num.length;
+    };
+
+    _this.multiply = function(e) {
+
+      var num = new Array(_this.getLength() + e.getLength() - 1);
+
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        for (var j = 0; j < e.getLength(); j += 1) {
+          num[i + j] ^= QRMath.gexp(QRMath.glog(_this.getAt(i) ) + QRMath.glog(e.getAt(j) ) );
+        }
+      }
+
+      return qrPolynomial(num, 0);
+    };
+
+    _this.mod = function(e) {
+
+      if (_this.getLength() - e.getLength() < 0) {
+        return _this;
+      }
+
+      var ratio = QRMath.glog(_this.getAt(0) ) - QRMath.glog(e.getAt(0) );
+
+      var num = new Array(_this.getLength() );
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        num[i] = _this.getAt(i);
+      }
+
+      for (var i = 0; i < e.getLength(); i += 1) {
+        num[i] ^= QRMath.gexp(QRMath.glog(e.getAt(i) ) + ratio);
+      }
+
+      // recursive call
+      return qrPolynomial(num, 0).mod(e);
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // QRRSBlock
+  //---------------------------------------------------------------------
+
+  var QRRSBlock = function() {
+
+    var RS_BLOCK_TABLE = [
+
+      // L
+      // M
+      // Q
+      // H
+
+      // 1
+      [1, 26, 19],
+      [1, 26, 16],
+      [1, 26, 13],
+      [1, 26, 9],
+
+      // 2
+      [1, 44, 34],
+      [1, 44, 28],
+      [1, 44, 22],
+      [1, 44, 16],
+
+      // 3
+      [1, 70, 55],
+      [1, 70, 44],
+      [2, 35, 17],
+      [2, 35, 13],
+
+      // 4
+      [1, 100, 80],
+      [2, 50, 32],
+      [2, 50, 24],
+      [4, 25, 9],
+
+      // 5
+      [1, 134, 108],
+      [2, 67, 43],
+      [2, 33, 15, 2, 34, 16],
+      [2, 33, 11, 2, 34, 12],
+
+      // 6
+      [2, 86, 68],
+      [4, 43, 27],
+      [4, 43, 19],
+      [4, 43, 15],
+
+      // 7
+      [2, 98, 78],
+      [4, 49, 31],
+      [2, 32, 14, 4, 33, 15],
+      [4, 39, 13, 1, 40, 14],
+
+      // 8
+      [2, 121, 97],
+      [2, 60, 38, 2, 61, 39],
+      [4, 40, 18, 2, 41, 19],
+      [4, 40, 14, 2, 41, 15],
+
+      // 9
+      [2, 146, 116],
+      [3, 58, 36, 2, 59, 37],
+      [4, 36, 16, 4, 37, 17],
+      [4, 36, 12, 4, 37, 13],
+
+      // 10
+      [2, 86, 68, 2, 87, 69],
+      [4, 69, 43, 1, 70, 44],
+      [6, 43, 19, 2, 44, 20],
+      [6, 43, 15, 2, 44, 16],
+
+      // 11
+      [4, 101, 81],
+      [1, 80, 50, 4, 81, 51],
+      [4, 50, 22, 4, 51, 23],
+      [3, 36, 12, 8, 37, 13],
+
+      // 12
+      [2, 116, 92, 2, 117, 93],
+      [6, 58, 36, 2, 59, 37],
+      [4, 46, 20, 6, 47, 21],
+      [7, 42, 14, 4, 43, 15],
+
+      // 13
+      [4, 133, 107],
+      [8, 59, 37, 1, 60, 38],
+      [8, 44, 20, 4, 45, 21],
+      [12, 33, 11, 4, 34, 12],
+
+      // 14
+      [3, 145, 115, 1, 146, 116],
+      [4, 64, 40, 5, 65, 41],
+      [11, 36, 16, 5, 37, 17],
+      [11, 36, 12, 5, 37, 13],
+
+      // 15
+      [5, 109, 87, 1, 110, 88],
+      [5, 65, 41, 5, 66, 42],
+      [5, 54, 24, 7, 55, 25],
+      [11, 36, 12, 7, 37, 13],
+
+      // 16
+      [5, 122, 98, 1, 123, 99],
+      [7, 73, 45, 3, 74, 46],
+      [15, 43, 19, 2, 44, 20],
+      [3, 45, 15, 13, 46, 16],
+
+      // 17
+      [1, 135, 107, 5, 136, 108],
+      [10, 74, 46, 1, 75, 47],
+      [1, 50, 22, 15, 51, 23],
+      [2, 42, 14, 17, 43, 15],
+
+      // 18
+      [5, 150, 120, 1, 151, 121],
+      [9, 69, 43, 4, 70, 44],
+      [17, 50, 22, 1, 51, 23],
+      [2, 42, 14, 19, 43, 15],
+
+      // 19
+      [3, 141, 113, 4, 142, 114],
+      [3, 70, 44, 11, 71, 45],
+      [17, 47, 21, 4, 48, 22],
+      [9, 39, 13, 16, 40, 14],
+
+      // 20
+      [3, 135, 107, 5, 136, 108],
+      [3, 67, 41, 13, 68, 42],
+      [15, 54, 24, 5, 55, 25],
+      [15, 43, 15, 10, 44, 16],
+
+      // 21
+      [4, 144, 116, 4, 145, 117],
+      [17, 68, 42],
+      [17, 50, 22, 6, 51, 23],
+      [19, 46, 16, 6, 47, 17],
+
+      // 22
+      [2, 139, 111, 7, 140, 112],
+      [17, 74, 46],
+      [7, 54, 24, 16, 55, 25],
+      [34, 37, 13],
+
+      // 23
+      [4, 151, 121, 5, 152, 122],
+      [4, 75, 47, 14, 76, 48],
+      [11, 54, 24, 14, 55, 25],
+      [16, 45, 15, 14, 46, 16],
+
+      // 24
+      [6, 147, 117, 4, 148, 118],
+      [6, 73, 45, 14, 74, 46],
+      [11, 54, 24, 16, 55, 25],
+      [30, 46, 16, 2, 47, 17],
+
+      // 25
+      [8, 132, 106, 4, 133, 107],
+      [8, 75, 47, 13, 76, 48],
+      [7, 54, 24, 22, 55, 25],
+      [22, 45, 15, 13, 46, 16],
+
+      // 26
+      [10, 142, 114, 2, 143, 115],
+      [19, 74, 46, 4, 75, 47],
+      [28, 50, 22, 6, 51, 23],
+      [33, 46, 16, 4, 47, 17],
+
+      // 27
+      [8, 152, 122, 4, 153, 123],
+      [22, 73, 45, 3, 74, 46],
+      [8, 53, 23, 26, 54, 24],
+      [12, 45, 15, 28, 46, 16],
+
+      // 28
+      [3, 147, 117, 10, 148, 118],
+      [3, 73, 45, 23, 74, 46],
+      [4, 54, 24, 31, 55, 25],
+      [11, 45, 15, 31, 46, 16],
+
+      // 29
+      [7, 146, 116, 7, 147, 117],
+      [21, 73, 45, 7, 74, 46],
+      [1, 53, 23, 37, 54, 24],
+      [19, 45, 15, 26, 46, 16],
+
+      // 30
+      [5, 145, 115, 10, 146, 116],
+      [19, 75, 47, 10, 76, 48],
+      [15, 54, 24, 25, 55, 25],
+      [23, 45, 15, 25, 46, 16],
+
+      // 31
+      [13, 145, 115, 3, 146, 116],
+      [2, 74, 46, 29, 75, 47],
+      [42, 54, 24, 1, 55, 25],
+      [23, 45, 15, 28, 46, 16],
+
+      // 32
+      [17, 145, 115],
+      [10, 74, 46, 23, 75, 47],
+      [10, 54, 24, 35, 55, 25],
+      [19, 45, 15, 35, 46, 16],
+
+      // 33
+      [17, 145, 115, 1, 146, 116],
+      [14, 74, 46, 21, 75, 47],
+      [29, 54, 24, 19, 55, 25],
+      [11, 45, 15, 46, 46, 16],
+
+      // 34
+      [13, 145, 115, 6, 146, 116],
+      [14, 74, 46, 23, 75, 47],
+      [44, 54, 24, 7, 55, 25],
+      [59, 46, 16, 1, 47, 17],
+
+      // 35
+      [12, 151, 121, 7, 152, 122],
+      [12, 75, 47, 26, 76, 48],
+      [39, 54, 24, 14, 55, 25],
+      [22, 45, 15, 41, 46, 16],
+
+      // 36
+      [6, 151, 121, 14, 152, 122],
+      [6, 75, 47, 34, 76, 48],
+      [46, 54, 24, 10, 55, 25],
+      [2, 45, 15, 64, 46, 16],
+
+      // 37
+      [17, 152, 122, 4, 153, 123],
+      [29, 74, 46, 14, 75, 47],
+      [49, 54, 24, 10, 55, 25],
+      [24, 45, 15, 46, 46, 16],
+
+      // 38
+      [4, 152, 122, 18, 153, 123],
+      [13, 74, 46, 32, 75, 47],
+      [48, 54, 24, 14, 55, 25],
+      [42, 45, 15, 32, 46, 16],
+
+      // 39
+      [20, 147, 117, 4, 148, 118],
+      [40, 75, 47, 7, 76, 48],
+      [43, 54, 24, 22, 55, 25],
+      [10, 45, 15, 67, 46, 16],
+
+      // 40
+      [19, 148, 118, 6, 149, 119],
+      [18, 75, 47, 31, 76, 48],
+      [34, 54, 24, 34, 55, 25],
+      [20, 45, 15, 61, 46, 16]
+    ];
+
+    var qrRSBlock = function(totalCount, dataCount) {
+      var _this = {};
+      _this.totalCount = totalCount;
+      _this.dataCount = dataCount;
+      return _this;
+    };
+
+    var _this = {};
+
+    var getRsBlockTable = function(typeNumber, errorCorrectionLevel) {
+
+      switch(errorCorrectionLevel) {
+      case QRErrorCorrectionLevel.L :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
+      case QRErrorCorrectionLevel.M :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+      case QRErrorCorrectionLevel.Q :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
+      case QRErrorCorrectionLevel.H :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
+      default :
+        return undefined;
+      }
+    };
+
+    _this.getRSBlocks = function(typeNumber, errorCorrectionLevel) {
+
+      var rsBlock = getRsBlockTable(typeNumber, errorCorrectionLevel);
+
+      if (typeof rsBlock == 'undefined') {
+        throw 'bad rs block @ typeNumber:' + typeNumber +
+            '/errorCorrectionLevel:' + errorCorrectionLevel;
+      }
+
+      var length = rsBlock.length / 3;
+
+      var list = [];
+
+      for (var i = 0; i < length; i += 1) {
+
+        var count = rsBlock[i * 3 + 0];
+        var totalCount = rsBlock[i * 3 + 1];
+        var dataCount = rsBlock[i * 3 + 2];
+
+        for (var j = 0; j < count; j += 1) {
+          list.push(qrRSBlock(totalCount, dataCount) );
+        }
+      }
+
+      return list;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrBitBuffer
+  //---------------------------------------------------------------------
+
+  var qrBitBuffer = function() {
+
+    var _buffer = [];
+    var _length = 0;
+
+    var _this = {};
+
+    _this.getBuffer = function() {
+      return _buffer;
+    };
+
+    _this.getAt = function(index) {
+      var bufIndex = Math.floor(index / 8);
+      return ( (_buffer[bufIndex] >>> (7 - index % 8) ) & 1) == 1;
+    };
+
+    _this.put = function(num, length) {
+      for (var i = 0; i < length; i += 1) {
+        _this.putBit( ( (num >>> (length - i - 1) ) & 1) == 1);
+      }
+    };
+
+    _this.getLengthInBits = function() {
+      return _length;
+    };
+
+    _this.putBit = function(bit) {
+
+      var bufIndex = Math.floor(_length / 8);
+      if (_buffer.length <= bufIndex) {
+        _buffer.push(0);
+      }
+
+      if (bit) {
+        _buffer[bufIndex] |= (0x80 >>> (_length % 8) );
+      }
+
+      _length += 1;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrNumber
+  //---------------------------------------------------------------------
+
+  var qrNumber = function(data) {
+
+    var _mode = QRMode.MODE_NUMBER;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _data;
+
+      var i = 0;
+
+      while (i + 2 < data.length) {
+        buffer.put(strToNum(data.substring(i, i + 3) ), 10);
+        i += 3;
+      }
+
+      if (i < data.length) {
+        if (data.length - i == 1) {
+          buffer.put(strToNum(data.substring(i, i + 1) ), 4);
+        } else if (data.length - i == 2) {
+          buffer.put(strToNum(data.substring(i, i + 2) ), 7);
+        }
+      }
+    };
+
+    var strToNum = function(s) {
+      var num = 0;
+      for (var i = 0; i < s.length; i += 1) {
+        num = num * 10 + chatToNum(s.charAt(i) );
+      }
+      return num;
+    };
+
+    var chatToNum = function(c) {
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      }
+      throw 'illegal char :' + c;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrAlphaNum
+  //---------------------------------------------------------------------
+
+  var qrAlphaNum = function(data) {
+
+    var _mode = QRMode.MODE_ALPHA_NUM;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var s = _data;
+
+      var i = 0;
+
+      while (i + 1 < s.length) {
+        buffer.put(
+          getCode(s.charAt(i) ) * 45 +
+          getCode(s.charAt(i + 1) ), 11);
+        i += 2;
+      }
+
+      if (i < s.length) {
+        buffer.put(getCode(s.charAt(i) ), 6);
+      }
+    };
+
+    var getCode = function(c) {
+
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      } else if ('A' <= c && c <= 'Z') {
+        return c.charCodeAt(0) - 'A'.charCodeAt(0) + 10;
+      } else {
+        switch (c) {
+        case ' ' : return 36;
+        case '$' : return 37;
+        case '%' : return 38;
+        case '*' : return 39;
+        case '+' : return 40;
+        case '-' : return 41;
+        case '.' : return 42;
+        case '/' : return 43;
+        case ':' : return 44;
+        default :
+          throw 'illegal char :' + c;
+        }
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qr8BitByte
+  //---------------------------------------------------------------------
+
+  var qr8BitByte = function(data) {
+
+    var _mode = QRMode.MODE_8BIT_BYTE;
+    var _data = data;
+    var _bytes = qrcode.stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _bytes.length;
+    };
+
+    _this.write = function(buffer) {
+      for (var i = 0; i < _bytes.length; i += 1) {
+        buffer.put(_bytes[i], 8);
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrKanji
+  //---------------------------------------------------------------------
+
+  var qrKanji = function(data) {
+
+    var _mode = QRMode.MODE_KANJI;
+    var _data = data;
+
+    var stringToBytes = qrcode.stringToBytesFuncs['SJIS'];
+    if (!stringToBytes) {
+      throw 'sjis not supported.';
+    }
+    !function(c, code) {
+      // self test for sjis support.
+      var test = stringToBytes(c);
+      if (test.length != 2 || ( (test[0] << 8) | test[1]) != code) {
+        throw 'sjis not supported.';
+      }
+    }('\u53cb', 0x9746);
+
+    var _bytes = stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return ~~(_bytes.length / 2);
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _bytes;
+
+      var i = 0;
+
+      while (i + 1 < data.length) {
+
+        var c = ( (0xff & data[i]) << 8) | (0xff & data[i + 1]);
+
+        if (0x8140 <= c && c <= 0x9FFC) {
+          c -= 0x8140;
+        } else if (0xE040 <= c && c <= 0xEBBF) {
+          c -= 0xC140;
+        } else {
+          throw 'illegal char at ' + (i + 1) + '/' + c;
+        }
+
+        c = ( (c >>> 8) & 0xff) * 0xC0 + (c & 0xff);
+
+        buffer.put(c, 13);
+
+        i += 2;
+      }
+
+      if (i < data.length) {
+        throw 'illegal char at ' + (i + 1);
+      }
+    };
+
+    return _this;
+  };
+
+  //=====================================================================
+  // GIF Support etc.
+  //
+
+  //---------------------------------------------------------------------
+  // byteArrayOutputStream
+  //---------------------------------------------------------------------
+
+  var byteArrayOutputStream = function() {
+
+    var _bytes = [];
+
+    var _this = {};
+
+    _this.writeByte = function(b) {
+      _bytes.push(b & 0xff);
+    };
+
+    _this.writeShort = function(i) {
+      _this.writeByte(i);
+      _this.writeByte(i >>> 8);
+    };
+
+    _this.writeBytes = function(b, off, len) {
+      off = off || 0;
+      len = len || b.length;
+      for (var i = 0; i < len; i += 1) {
+        _this.writeByte(b[i + off]);
+      }
+    };
+
+    _this.writeString = function(s) {
+      for (var i = 0; i < s.length; i += 1) {
+        _this.writeByte(s.charCodeAt(i) );
+      }
+    };
+
+    _this.toByteArray = function() {
+      return _bytes;
+    };
+
+    _this.toString = function() {
+      var s = '';
+      s += '[';
+      for (var i = 0; i < _bytes.length; i += 1) {
+        if (i > 0) {
+          s += ',';
+        }
+        s += _bytes[i];
+      }
+      s += ']';
+      return s;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64EncodeOutputStream
+  //---------------------------------------------------------------------
+
+  var base64EncodeOutputStream = function() {
+
+    var _buffer = 0;
+    var _buflen = 0;
+    var _length = 0;
+    var _base64 = '';
+
+    var _this = {};
+
+    var writeEncoded = function(b) {
+      _base64 += String.fromCharCode(encode(b & 0x3f) );
+    };
+
+    var encode = function(n) {
+      if (n < 0) {
+        // error.
+      } else if (n < 26) {
+        return 0x41 + n;
+      } else if (n < 52) {
+        return 0x61 + (n - 26);
+      } else if (n < 62) {
+        return 0x30 + (n - 52);
+      } else if (n == 62) {
+        return 0x2b;
+      } else if (n == 63) {
+        return 0x2f;
+      }
+      throw 'n:' + n;
+    };
+
+    _this.writeByte = function(n) {
+
+      _buffer = (_buffer << 8) | (n & 0xff);
+      _buflen += 8;
+      _length += 1;
+
+      while (_buflen >= 6) {
+        writeEncoded(_buffer >>> (_buflen - 6) );
+        _buflen -= 6;
+      }
+    };
+
+    _this.flush = function() {
+
+      if (_buflen > 0) {
+        writeEncoded(_buffer << (6 - _buflen) );
+        _buffer = 0;
+        _buflen = 0;
+      }
+
+      if (_length % 3 != 0) {
+        // padding
+        var padlen = 3 - _length % 3;
+        for (var i = 0; i < padlen; i += 1) {
+          _base64 += '=';
+        }
+      }
+    };
+
+    _this.toString = function() {
+      return _base64;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64DecodeInputStream
+  //---------------------------------------------------------------------
+
+  var base64DecodeInputStream = function(str) {
+
+    var _str = str;
+    var _pos = 0;
+    var _buffer = 0;
+    var _buflen = 0;
+
+    var _this = {};
+
+    _this.read = function() {
+
+      while (_buflen < 8) {
+
+        if (_pos >= _str.length) {
+          if (_buflen == 0) {
+            return -1;
+          }
+          throw 'unexpected end of file./' + _buflen;
+        }
+
+        var c = _str.charAt(_pos);
+        _pos += 1;
+
+        if (c == '=') {
+          _buflen = 0;
+          return -1;
+        } else if (c.match(/^\s$/) ) {
+          // ignore if whitespace.
+          continue;
+        }
+
+        _buffer = (_buffer << 6) | decode(c.charCodeAt(0) );
+        _buflen += 6;
+      }
+
+      var n = (_buffer >>> (_buflen - 8) ) & 0xff;
+      _buflen -= 8;
+      return n;
+    };
+
+    var decode = function(c) {
+      if (0x41 <= c && c <= 0x5a) {
+        return c - 0x41;
+      } else if (0x61 <= c && c <= 0x7a) {
+        return c - 0x61 + 26;
+      } else if (0x30 <= c && c <= 0x39) {
+        return c - 0x30 + 52;
+      } else if (c == 0x2b) {
+        return 62;
+      } else if (c == 0x2f) {
+        return 63;
+      } else {
+        throw 'c:' + c;
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // gifImage (B/W)
+  //---------------------------------------------------------------------
+
+  var gifImage = function(width, height) {
+
+    var _width = width;
+    var _height = height;
+    var _data = new Array(width * height);
+
+    var _this = {};
+
+    _this.setPixel = function(x, y, pixel) {
+      _data[y * _width + x] = pixel;
+    };
+
+    _this.write = function(out) {
+
+      //---------------------------------
+      // GIF Signature
+
+      out.writeString('GIF87a');
+
+      //---------------------------------
+      // Screen Descriptor
+
+      out.writeShort(_width);
+      out.writeShort(_height);
+
+      out.writeByte(0x80); // 2bit
+      out.writeByte(0);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Global Color Map
+
+      // black
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+
+      // white
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+
+      //---------------------------------
+      // Image Descriptor
+
+      out.writeString(',');
+      out.writeShort(0);
+      out.writeShort(0);
+      out.writeShort(_width);
+      out.writeShort(_height);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Local Color Map
+
+      //---------------------------------
+      // Raster Data
+
+      var lzwMinCodeSize = 2;
+      var raster = getLZWRaster(lzwMinCodeSize);
+
+      out.writeByte(lzwMinCodeSize);
+
+      var offset = 0;
+
+      while (raster.length - offset > 255) {
+        out.writeByte(255);
+        out.writeBytes(raster, offset, 255);
+        offset += 255;
+      }
+
+      out.writeByte(raster.length - offset);
+      out.writeBytes(raster, offset, raster.length - offset);
+      out.writeByte(0x00);
+
+      //---------------------------------
+      // GIF Terminator
+      out.writeString(';');
+    };
+
+    var bitOutputStream = function(out) {
+
+      var _out = out;
+      var _bitLength = 0;
+      var _bitBuffer = 0;
+
+      var _this = {};
+
+      _this.write = function(data, length) {
+
+        if ( (data >>> length) != 0) {
+          throw 'length over';
+        }
+
+        while (_bitLength + length >= 8) {
+          _out.writeByte(0xff & ( (data << _bitLength) | _bitBuffer) );
+          length -= (8 - _bitLength);
+          data >>>= (8 - _bitLength);
+          _bitBuffer = 0;
+          _bitLength = 0;
+        }
+
+        _bitBuffer = (data << _bitLength) | _bitBuffer;
+        _bitLength = _bitLength + length;
+      };
+
+      _this.flush = function() {
+        if (_bitLength > 0) {
+          _out.writeByte(_bitBuffer);
+        }
+      };
+
+      return _this;
+    };
+
+    var getLZWRaster = function(lzwMinCodeSize) {
+
+      var clearCode = 1 << lzwMinCodeSize;
+      var endCode = (1 << lzwMinCodeSize) + 1;
+      var bitLength = lzwMinCodeSize + 1;
+
+      // Setup LZWTable
+      var table = lzwTable();
+
+      for (var i = 0; i < clearCode; i += 1) {
+        table.add(String.fromCharCode(i) );
+      }
+      table.add(String.fromCharCode(clearCode) );
+      table.add(String.fromCharCode(endCode) );
+
+      var byteOut = byteArrayOutputStream();
+      var bitOut = bitOutputStream(byteOut);
+
+      // clear code
+      bitOut.write(clearCode, bitLength);
+
+      var dataIndex = 0;
+
+      var s = String.fromCharCode(_data[dataIndex]);
+      dataIndex += 1;
+
+      while (dataIndex < _data.length) {
+
+        var c = String.fromCharCode(_data[dataIndex]);
+        dataIndex += 1;
+
+        if (table.contains(s + c) ) {
+
+          s = s + c;
+
+        } else {
+
+          bitOut.write(table.indexOf(s), bitLength);
+
+          if (table.size() < 0xfff) {
+
+            if (table.size() == (1 << bitLength) ) {
+              bitLength += 1;
+            }
+
+            table.add(s + c);
+          }
+
+          s = c;
+        }
+      }
+
+      bitOut.write(table.indexOf(s), bitLength);
+
+      // end code
+      bitOut.write(endCode, bitLength);
+
+      bitOut.flush();
+
+      return byteOut.toByteArray();
+    };
+
+    var lzwTable = function() {
+
+      var _map = {};
+      var _size = 0;
+
+      var _this = {};
+
+      _this.add = function(key) {
+        if (_this.contains(key) ) {
+          throw 'dup key:' + key;
+        }
+        _map[key] = _size;
+        _size += 1;
+      };
+
+      _this.size = function() {
+        return _size;
+      };
+
+      _this.indexOf = function(key) {
+        return _map[key];
+      };
+
+      _this.contains = function(key) {
+        return typeof _map[key] != 'undefined';
+      };
+
+      return _this;
+    };
+
+    return _this;
+  };
+
+  var createDataURL = function(width, height, getPixel) {
+    var gif = gifImage(width, height);
+    for (var y = 0; y < height; y += 1) {
+      for (var x = 0; x < width; x += 1) {
+        gif.setPixel(x, y, getPixel(x, y) );
+      }
+    }
+
+    var b = byteArrayOutputStream();
+    gif.write(b);
+
+    var base64 = base64EncodeOutputStream();
+    var bytes = b.toByteArray();
+    for (var i = 0; i < bytes.length; i += 1) {
+      base64.writeByte(bytes[i]);
+    }
+    base64.flush();
+
+    return 'data:image/gif;base64,' + base64;
+  };
+
+  //---------------------------------------------------------------------
+  // returns qrcode function.
+
+  return qrcode;
+}();
+
+// multibyte support
+!function() {
+
+  qrcode.stringToBytesFuncs['UTF-8'] = function(s) {
+    // http://stackoverflow.com/questions/18729405/how-to-convert-utf8-string-to-byte-array
+    function toUTF8Array(str) {
+      var utf8 = [];
+      for (var i=0; i < str.length; i++) {
+        var charcode = str.charCodeAt(i);
+        if (charcode < 0x80) utf8.push(charcode);
+        else if (charcode < 0x800) {
+          utf8.push(0xc0 | (charcode >> 6),
+              0x80 | (charcode & 0x3f));
+        }
+        else if (charcode < 0xd800 || charcode >= 0xe000) {
+          utf8.push(0xe0 | (charcode >> 12),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+        // surrogate pair
+        else {
+          i++;
+          // UTF-16 encodes 0x10000-0x10FFFF by
+          // subtracting 0x10000 and splitting the
+          // 20 bits of 0x0-0xFFFFF into two halves
+          charcode = 0x10000 + (((charcode & 0x3ff)<<10)
+            | (str.charCodeAt(i) & 0x3ff));
+          utf8.push(0xf0 | (charcode >>18),
+              0x80 | ((charcode>>12) & 0x3f),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+      }
+      return utf8;
+    }
+    return toUTF8Array(s);
+  };
+
+}();
+
+(function (factory) {
+  if (typeof define === 'function' && define.amd) {
+      define([], factory);
+  } else if (typeof exports === 'object') {
+      module.exports = factory();
+  }
+}(function () {
+    return qrcode;
+}));
+
+//---------------------------------------------------------------------
+//
+// QR Code Generator for JavaScript UTF8 Support (optional)
+//
+// Copyright (c) 2011 Kazuhiko Arase
+//
+// URL: http://www.d-project.com/
+//
+// Licensed under the MIT license:
+//  http://www.opensource.org/licenses/mit-license.php
+//
+// The word 'QR Code' is registered trademark of
+// DENSO WAVE INCORPORATED
+//  http://www.denso-wave.com/qrcode/faqpatent-e.html
+//
+//---------------------------------------------------------------------
+
+!function(qrcode) {
+
+  //---------------------------------------------------------------------
+  // overwrite qrcode.stringToBytes
+  //---------------------------------------------------------------------
+
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+
+}(qrcode);
+
+</script>
+<script>
+// ===== Stage mode logic (2026-11-21 presentation layer) =====
+// 纯呈现层：不发交易、不改合约交互，只读主脚本维护的 passport / feedCache
+// 全局状态。数据口径：计数器统计「本页面打开以来新出现的链上事件」，
+// 首次链上扫描完成后建立基线，历史事件不计入、不触发音效。
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var fmtU = function (units) { return (Number(units) / 1e6).toFixed(2); };
+
+  // ---------- 音效（WebAudio 现场合成，无音频文件） ----------
+  var actx = null;
+  function ensureAudio() {
+    if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { actx = null; } }
+    if (actx && actx.state === "suspended") actx.resume();
+  }
+  window.addEventListener("pointerdown", ensureAudio);
+  window.addEventListener("keydown", ensureAudio);
+  function tone(freq, delay, dur, type, vol, slideTo) {
+    if (!actx) return;
+    var t0 = actx.currentTime + delay;
+    var o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  }
+  function playSuccess() { // 盖章「咚」+ 清脆「叮」
+    tone(150, 0, 0.16, "sine", 0.5, 70);
+    tone(1568, 0.05, 0.5, "triangle", 0.22);
+    tone(2093, 0.05, 0.35, "sine", 0.10);
+  }
+  function playReject() { // 两声低沉 buzz
+    tone(130, 0, 0.14, "square", 0.16);
+    tone(110, 0.18, 0.22, "square", 0.16);
+  }
+
+  // ---------- #5 印章接口 ----------
+  // 现在由付款成功事件自动触发屏幕盖章动画；将来若买了实体印章/物理按钮，
+  // 让它调用同一个 window.StampEffect.trigger("PAID · 已验签") 即可，
+  // 演示脚本与计数逻辑都不用改。
+  window.StampEffect = {
+    trigger: function (text) {
+      var el = $("stamp");
+      if (!el) return;
+      if (text) el.textContent = text;
+      el.classList.remove("show");
+      void el.offsetWidth; // restart animation
+      el.classList.add("show");
+      // Remove the class after the animation ends. Otherwise .show lingers on
+      // the element and, when the stage is re-entered (display:none -> block
+      // re-triggers a CSS animation), the stamp replays on every B press
+      // (found 2026-11-21).
+      clearTimeout(el._stampT);
+      el._stampT = setTimeout(function () { el.classList.remove("show"); }, 2300);
+    }
+  };
+
+  // ---------- QR（内嵌 qrcode-generator，MIT，Kazuhiko Arase） ----------
+  function setQR(el, url) {
+    if (!el || typeof qrcode !== "function") return;
+    try {
+      var qr = qrcode(0, "M");
+      qr.addData(url);
+      qr.make();
+      el.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 4, scalable: true });
+    } catch (e) { el.textContent = url; }
+  }
+  function vaultUrl() { return CONFIG.explorer + "/address/" + CONFIG.vault; }
+  function txUrl(hash) { return CONFIG.explorer + "/tx/" + hash; }
+
+  // ---------- 本场计数与事件检测 ----------
+  var seen = {}, baselineDone = false, seenPassport = -1;
+  var nBlocked = 0, amtBlocked = 0n, nPaid = 0;
+  var key = function (l) { return l.transactionHash + ":" + l.logIndex; };
+
+  function renderCounters() {
+    $("blockedCount").textContent = nBlocked;
+    $("blockedAmount").textContent = fmtU(amtBlocked);
+    $("paidCount").textContent = nPaid;
+  }
+  function onPayment(l) {
+    nPaid++;
+    setQR($("stageQr"), txUrl(l.transactionHash));
+    $("stageQrTitle").textContent = "扫码验最新一笔交易";
+    playSuccess();
+    if (document.body.classList.contains("stage-on")) window.StampEffect.trigger("PAID · 已验签");
+    renderCounters();
+  }
+  function onRejection(l) {
+    nBlocked++;
+    try { amtBlocked += BigInt("0x" + l.data.slice(2, 66)); } catch (e) { /* 金额解析失败只计次 */ }
+    playReject();
+    var st = $("stage");
+    st.classList.remove("reject-flash"); void st.offsetWidth; st.classList.add("reject-flash");
+    renderCounters();
+  }
+  function pollEvents() {
+    if (typeof feedCache === "undefined" || typeof scanWatermark === "undefined") return;
+    if (feedCache.forPassport !== seenPassport) { // 切护照：计数与基线重来
+      seen = {}; baselineDone = false; seenPassport = feedCache.forPassport;
+      nBlocked = 0; amtBlocked = 0n; nPaid = 0; renderCounters();
+      setQR($("stageQr"), vaultUrl());
+      $("stageQrTitle").textContent = "扫码验金库合约";
+    }
+    if (!baselineDone) {
+      if (scanWatermark > 0) { // 主脚本首次扫描已完成：现有事件全部算历史
+        feedCache.executed.forEach(function (l) { seen[key(l)] = 1; });
+        feedCache.rejected.forEach(function (l) { seen[key(l)] = 1; });
+        var last = feedCache.executed[feedCache.executed.length - 1];
+        if (last) { setQR($("stageQr"), txUrl(last.transactionHash)); }
+        baselineDone = true;
+      }
+      return;
+    }
+    feedCache.executed.forEach(function (l) { if (!seen[key(l)]) { seen[key(l)] = 1; onPayment(l); } });
+    feedCache.rejected.forEach(function (l) { if (!seen[key(l)]) { seen[key(l)] = 1; onRejection(l); } });
+  }
+
+  // ---------- 大屏数字 ----------
+  function pollStage() {
+    if (typeof passport !== "undefined" && passport) {
+      $("stageBalance").textContent = fmtU(passport.balance);
+      $("stageSpent").textContent = fmtU(passport.spentToday);
+      $("stageDaily").textContent = fmtU(passport.dailyLimit);
+      $("stageSingle").textContent = fmtU(passport.singleLimit);
+      $("stageBar").style.width =
+        (passport.dailyLimit === 0n ? 0 : Math.min(100, Number(passport.spentToday * 100n / passport.dailyLimit))) + "%";
+      var pill = $("stagePill");
+      pill.textContent = "护照 #" + passportId + (passport.revoked ? " · 已熔断" : " · 有效");
+      pill.className = "stage-pill" + (passport.revoked ? " bad" : "");
+    }
+    pollEvents();
+  }
+  setInterval(pollStage, 1200);
+
+  // ---------- #7 左侧：无护照钱包模拟掏空（明确标注模拟） ----------
+  var simRunning = false, simUnits = 1000000;
+  function renderSim() {
+    var el = $("simBalance");
+    el.textContent = fmtU(simUnits) + " USDC";
+    el.classList.toggle("sim-drained", simUnits <= 0);
+  }
+  function startSim() {
+    if (simRunning) return;
+    if (simUnits <= 0) { // 已跑完时按 S 只复位待机，方便彩排试跑后恢复
+      simUnits = 1000000; renderSim();
+      $("simStatus").textContent = "私钥 / 会话一旦被诱导授权：没有限额、没有白名单、没有熔断。按 S 键开始模拟掏空。";
+      return;
+    }
+    simUnits = 1000000; simRunning = true; renderSim();
+    $("simStatus").textContent = "模拟中：攻击者正把余额一笔笔转走——没有护照，没有任何一笔会被拦下来…";
+    var iv = setInterval(function () {
+      simUnits -= Math.floor(40000 + Math.random() * 130000);
+      if (simUnits <= 0) {
+        simUnits = 0; simRunning = false; clearInterval(iv);
+        $("simStatus").textContent = "模拟结束：余额已被转空。对照右侧——同样的攻击打在 SpendSeal 上，最坏只损失日限额。";
+      }
+      renderSim();
+    }, 110);
+  }
+
+  // ---------- 键盘：B 大屏 / E 投票卡 / S 模拟 ----------
+  document.addEventListener("keydown", function (e) {
+    var tag = (e.target && e.target.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || e.metaKey || e.ctrlKey || e.altKey) return;
+    var k = e.key.toLowerCase();
+    if (k === "b") {
+      var on = document.body.classList.toggle("stage-on");
+      if (on) { ensureAudio(); setQR($("stageEndQr"), vaultUrl()); pollStage(); }
+    } else if (k === "e" && document.body.classList.contains("stage-on")) {
+      // The closing card is a takeover: hide the header and the key-hint bar too,
+      // otherwise the brand name appears twice on the last slide the audience
+      // photographs (found 2026-11-21 dry run).
+      var end = $("stageEnd"), main = $("stageMain");
+      var showEnd = end.hidden;
+      end.hidden = !showEnd;
+      main.style.display = showEnd ? "none" : "";
+      document.body.classList.toggle("stage-end-on", showEnd);
+      if (showEnd) setQR($("stageEndQr"), vaultUrl());
+    } else if (k === "s" && document.body.classList.contains("stage-on")) {
+      startSim();
+    }
+  });
+  renderCounters(); renderSim();
+})();
+
+</script>
+</body>
+</html>

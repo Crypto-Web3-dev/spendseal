@@ -1,0 +1,90 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SpendSeal Architecture</title>
+<style>
+  body { margin:0; background:#0b1020; color:#e8ecf8; font-family:system-ui,-apple-system,"PingFang SC",sans-serif; }
+  .wrap { width:1600px; height:1000px; position:relative; overflow:hidden; }
+  h1 { position:absolute; top:36px; left:56px; font-size:40px; margin:0; }
+  .sub { position:absolute; top:96px; left:58px; color:#93a0c2; font-size:19px; }
+  .box { position:absolute; background:#151b31; border:1.5px solid #26304f; border-radius:16px; padding:18px 20px; }
+  .box h2 { margin:0 0 6px; font-size:22px; }
+  .box p { margin:0; color:#aab6d8; font-size:15.5px; line-height:1.45; }
+  .box .tag { display:inline-block; font-size:12.5px; color:#6ee7a8; border:1px solid #166534; border-radius:99px; padding:2px 10px; margin-bottom:8px; }
+  .box.vault { border-color:#166534; background:#12241c; }
+  .box.agent { border-color:#7c3aed; background:#1d1430; }
+  .step { position:absolute; font-size:14.5px; color:#e8ecf8; background:#1e2a4a; border:1px solid #33477a; border-radius:10px; padding:5px 10px; white-space:nowrap; z-index:3; }
+  .foot { position:absolute; left:56px; right:56px; bottom:30px; display:flex; gap:14px; }
+  .foot div { flex:1; background:#111a33; border:1px solid #26304f; border-radius:12px; padding:13px 16px; font-size:15.5px; color:#c6cfe8; }
+  .foot b { color:#6ee7a8; }
+  svg.arrows { position:absolute; inset:0; z-index:1; }
+  .box { z-index:2; }
+</style>
+<div class="wrap">
+  <h1>🦭 SpendSeal — Architecture</h1>
+  <div class="sub">A sealed spending allowance for your AI agent · Monad Testnet (chain 10143) · PassportVault 0x8881…7cf1</div>
+
+  <svg class="arrows" width="1600" height="1000" viewBox="0 0 1600 1000">
+    <defs>
+      <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#7d8fc4"/>
+      </marker>
+      <marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#6ee7a8"/>
+      </marker>
+    </defs>
+    <!-- agent -> seller : request -->
+    <line x1="622" y1="320" x2="946" y2="412" stroke="#7d8fc4" stroke-width="2.5" marker-end="url(#ar)"/>
+    <!-- seller -> agent : delivery -->
+    <line x1="946" y1="468" x2="622" y2="376" stroke="#7d8fc4" stroke-width="2.5" marker-end="url(#ar)"/>
+    <!-- bridge -> vault -->
+    <line x1="470" y1="452" x2="470" y2="614" stroke="#6ee7a8" stroke-width="2.5" marker-end="url(#arg)"/>
+    <!-- vault -> seller payee -->
+    <path d="M 762 690 C 880 680, 1000 640, 1085 596" fill="none" stroke="#6ee7a8" stroke-width="2.5" marker-end="url(#arg)"/>
+    <!-- owner console -> vault -->
+    <path d="M 250 590 C 260 650, 290 680, 340 700" fill="none" stroke="#7d8fc4" stroke-width="2.5" marker-end="url(#ar)"/>
+    <!-- agent identity dashed -->
+    <line x1="622" y1="228" x2="1146" y2="228" stroke="#7c3aed" stroke-width="2" stroke-dasharray="7 7"/>
+  </svg>
+
+  <div class="box agent" style="left:300px; top:190px; width:320px;">
+    <span class="tag">AGENT SIDE · DESKTOP</span>
+    <h2>🤖 Claude Desktop + spendseal-mcp</h2>
+    <p>Only two MCP tools: <b>pay_for_api</b> and read-only <b>passport_status</b>. No management tools exist — by design.</p>
+  </div>
+
+  <div class="box" style="left:1150px; top:150px; width:330px;">
+    <span class="tag" style="color:#c4b5fd;border-color:#7c3aed">IDENTITY · DISPLAY ONLY</span>
+    <h2>🪪 ERC-8004 Registry</h2>
+    <p>Agent identity <b>agentId 2560</b>. Discovery only — never consulted by the payment path.</p>
+  </div>
+
+  <div class="box" style="left:950px; top:380px; width:340px;">
+    <span class="tag">SELLER · LOCAL SERVICE</span>
+    <h2>📸 Paid Screenshot API</h2>
+    <p>HTTP 402 + EIP-712 <b>signed invoice</b> (signer = payee). Verifies the vault's PaymentExecuted event, consumes each invoice exactly once, then delivers the PNG.</p>
+  </div>
+
+  <div class="box" style="left:40px; top:380px; width:250px;">
+    <span class="tag">OWNER</span>
+    <h2>👤 Owner Console</h2>
+    <p>MetaMask-signed only: deposit, limits, whitelist, rejection logging, <b style="color:#f87171">kill switch</b>. Revoking never locks the owner's funds.</p>
+  </div>
+
+  <div class="box vault" style="left:300px; top:620px; width:460px;">
+    <span class="tag">ON-CHAIN · MONAD</span>
+    <h2>🏦 PassportVault</h2>
+    <p>Holds USDC per passport. Every payment checked in-contract, in fixed order: exists → not revoked → not expired → <b>whitelisted</b> → <b>per-payment cap</b> → <b>daily cap (UTC)</b> → balance. Optional on-chain rejection audit.</p>
+  </div>
+
+  <div class="step" style="left:700px; top:318px;">① GET → 402 + signed invoice</div>
+  <div class="step" style="left:596px; top:466px;">⑤ retry + tx hash → ⑥ verified → PNG</div>
+  <div class="step" style="left:488px; top:520px;">② verify signature → ③ checkPay → tryPay</div>
+  <div class="step" style="left:855px; top:648px;">④ USDC to seller (only if every rule passes)</div>
+  <div class="step" style="left:56px; top:612px;">owner txs only</div>
+
+  <div class="foot">
+    <div><b>Funds isolation</b> — the agent address holds only gas; USDC can move solely through the vault's checks.</div>
+    <div><b>Two doors</b> — signatures prove the quote is authentic; the passport enforces the rules. Neither replaces the other.</div>
+    <div><b>Bounded blast radius</b> — a leaked agent key loses at most one day's allowance (demo: 0.20 USDC).</div>
+  </div>
+</div>

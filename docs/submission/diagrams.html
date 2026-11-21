@@ -1,0 +1,897 @@
+<title>SpendSeal 架构与流程</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: single reading column, 1100px max; layered zone diagram + vertical flow spine */
+  :root {
+    --bg: #f6f7fa;
+    --surface: #ffffff;
+    --surface-2: #eef1f7;
+    --fg: #0d1220;
+    --dim: #5a6478;
+    --faint: #8b93a7;
+    --line: #dde2ec;
+    --line-strong: #c3cbdb;
+    --accent: #0b6b3a;
+    --accent-soft: #e3f4ea;
+    --bad: #b42318;
+    --bad-soft: #fdeceb;
+    --warn: #94600a;
+    --warn-soft: #fdf3e2;
+    --mono: #253047;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b1020;
+      --surface: #121a33;
+      --surface-2: #16203c;
+      --fg: #eef2fb;
+      --dim: #9aa6c0;
+      --faint: #6b7794;
+      --line: #1f2b4a;
+      --line-strong: #2c3b60;
+      --accent: #3ddc84;
+      --accent-soft: #10301f;
+      --bad: #f87171;
+      --bad-soft: #33161a;
+      --warn: #fbbf24;
+      --warn-soft: #33270d;
+      --mono: #c9d6f0;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b1020;
+    --surface: #121a33;
+    --surface-2: #16203c;
+    --fg: #eef2fb;
+    --dim: #9aa6c0;
+    --faint: #6b7794;
+    --line: #1f2b4a;
+    --line-strong: #2c3b60;
+    --accent: #3ddc84;
+    --accent-soft: #10301f;
+    --bad: #f87171;
+    --bad-soft: #33161a;
+    --warn: #fbbf24;
+    --warn-soft: #33270d;
+    --mono: #c9d6f0;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    font-size: 16.5px;
+    line-height: 1.65;
+    padding-left: max(18px, env(safe-area-inset-left, 0px));
+    padding-right: max(18px, env(safe-area-inset-right, 0px));
+    padding-block: 0 72px;
+  }
+
+  .wrap { max-width: 1100px; margin: 0 auto; }
+
+  h1, h2, h3 { font-family: "Space Grotesk", Inter, sans-serif; text-wrap: balance; margin: 0; }
+  code, .mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  /* ---------- header ---------- */
+  .page-head { padding-block: 56px 34px; border-bottom: 1px solid var(--line); }
+  .eyebrow {
+    font-size: 12.5px; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--faint); font-weight: 600; margin-bottom: 18px;
+  }
+  h1 { font-size: clamp(34px, 5vw, 50px); font-weight: 700; line-height: 1.06; letter-spacing: -.02em; }
+  h1 .thin { display: block; font-size: .52em; font-weight: 500; color: var(--dim); letter-spacing: .01em; margin-top: 10px; }
+  .thesis {
+    margin: 22px 0 0; max-width: 60ch; font-size: 18.5px; line-height: 1.6; color: var(--fg);
+  }
+  .thesis b { color: var(--accent); font-weight: 600; }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 10px 26px; margin-top: 28px;
+    font-size: 13px; color: var(--dim);
+  }
+  .meta span { display: inline-flex; align-items: center; gap: 7px; }
+  .meta .k { color: var(--faint); }
+
+  /* ---------- sections ---------- */
+  section { padding-block: 54px 8px; border-bottom: 1px solid var(--line); }
+  section:last-of-type { border-bottom: 0; }
+  h2 {
+    font-size: clamp(23px, 2.6vw, 30px); font-weight: 600; letter-spacing: -.015em;
+    display: flex; align-items: baseline; gap: 14px;
+  }
+  h2 .num {
+    font-size: 13px; font-weight: 600; letter-spacing: .12em; color: var(--accent);
+    font-family: "JetBrains Mono", monospace;
+  }
+  .lede { margin: 14px 0 30px; max-width: 68ch; color: var(--dim); font-size: 16px; }
+  .lede b { color: var(--fg); font-weight: 600; }
+
+  /* ---------- zone diagram ---------- */
+  .zones { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 22px; }
+  .zone {
+    border: 1px solid var(--line-strong); border-radius: 4px;
+    padding: 20px 22px 22px; background: var(--surface);
+  }
+  .zone.untrusted { border-style: dashed; border-color: var(--bad); background: var(--bad-soft); }
+  .zone.trusted { border-color: var(--accent); background: var(--accent-soft); }
+  .zone-h {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    font-size: 12.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .zone.untrusted .zone-h { color: var(--bad); }
+  .zone.trusted .zone-h { color: var(--accent); }
+  .zone-h .tag {
+    font-size: 11px; letter-spacing: .04em; text-transform: none; font-weight: 600;
+    padding: 2px 8px; border-radius: 99px; border: 1px solid currentColor; opacity: .9;
+  }
+  .zone p { margin: 0 0 10px; font-size: 14px; color: var(--fg); }
+  .zone p:last-child { margin-bottom: 0; }
+  .zone ul { margin: 0; padding-left: 18px; font-size: 14px; }
+  .zone li { margin-bottom: 5px; }
+  .zone .note { font-size: 13px; color: var(--dim); margin-top: 12px; }
+
+  /* ---------- component cards ---------- */
+  .components { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .comp {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 4px;
+    padding: 18px 20px 20px; min-width: 0;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .comp.enforce { border-color: var(--accent); border-left-width: 3px; }
+  .comp-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .comp-h h3 { font-size: 16.5px; font-weight: 600; }
+  .comp-h .who { font-size: 11px; color: var(--faint); letter-spacing: .06em; text-transform: uppercase; }
+  .comp .addr { font-size: 12px; color: var(--faint); word-break: break-all; }
+  .comp p { margin: 0; font-size: 14px; color: var(--dim); }
+  .comp .can, .comp .cant { font-size: 13.5px; }
+  .comp .can::before { content: "✓ "; color: var(--accent); font-weight: 700; }
+  .comp .cant::before { content: "✕ "; color: var(--bad); font-weight: 700; }
+
+  /* ---------- callout ---------- */
+  .callout {
+    margin: 24px 0 8px; padding: 17px 20px 18px; border-radius: 4px;
+    background: var(--surface-2); border-left: 3px solid var(--accent);
+    font-size: 15px; line-height: 1.6;
+  }
+  .callout.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .callout.bad { border-left-color: var(--bad); background: var(--bad-soft); }
+  .callout b { font-weight: 650; }
+  .callout .lbl {
+    display: block; font-size: 11.5px; letter-spacing: .11em; text-transform: uppercase;
+    color: var(--dim); font-weight: 700; margin-bottom: 7px;
+  }
+
+  /* ---------- flow spine ---------- */
+  .steps { list-style: none; margin: 0; padding: 0; position: relative; }
+  .steps::before {
+    content: ""; position: absolute; left: 25px; top: 14px; bottom: 26px;
+    width: 2px; background: var(--line-strong);
+  }
+  .step { position: relative; padding-left: 68px; padding-bottom: 26px; }
+  .step:last-child { padding-bottom: 0; }
+  .step-num {
+    position: absolute; left: 0; top: 0; width: 52px; height: 52px;
+    display: grid; place-items: center; border-radius: 50%;
+    background: var(--bg); border: 2px solid var(--line-strong);
+    font-family: "JetBrains Mono", monospace; font-size: 17px; font-weight: 500; color: var(--dim);
+  }
+  .step.onchain .step-num { border-color: var(--accent); color: var(--accent); }
+  .step.optional .step-num { border-style: dashed; color: var(--faint); }
+  .step-body { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 16px 19px 18px; }
+  .step-top { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-bottom: 7px; }
+  .step-top h3 { font-size: 17px; font-weight: 600; }
+  .pill {
+    font-size: 11.5px; font-weight: 600; letter-spacing: .05em; padding: 2px 9px;
+    border-radius: 99px; border: 1px solid currentColor; white-space: nowrap;
+  }
+  .pill.off { color: var(--faint); }
+  .pill.on { color: var(--accent); }
+  .pill.opt { color: var(--warn); }
+  .step p { margin: 0 0 6px; font-size: 14.5px; color: var(--dim); }
+  .step p:last-child { margin-bottom: 0; }
+  .step .hit { color: var(--fg); }
+  .step .miss { font-size: 13.5px; color: var(--bad); }
+  .step .miss::before { content: "缺了 → "; font-weight: 600; }
+
+  /* ---------- tables ---------- */
+  .tbl-wrap { overflow-x: auto; margin: 8px 0 0; border: 1px solid var(--line); border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; min-width: 620px; }
+  caption {
+    text-align: left; font-size: 12.5px; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--faint); font-weight: 600; padding: 14px 16px 12px; background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+  th, td { padding: 11px 16px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th {
+    font-size: 12.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--dim);
+    font-weight: 600; background: var(--surface-2); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr.ours { background: var(--accent-soft); }
+  tbody tr.ours td { font-weight: 600; }
+  td.y { color: var(--accent); font-weight: 600; }
+  td.n { color: var(--bad); font-weight: 600; }
+  td.p { color: var(--warn); font-weight: 600; }
+  td .sub { display: block; font-size: 12.5px; color: var(--dim); font-weight: 400; margin-top: 2px; }
+
+  /* ---------- figures ---------- */
+  .fig { margin: 26px 0 4px; }
+  .fig-scroll { overflow-x: auto; }
+  .fig svg { display: block; width: 100%; height: auto; min-width: 680px; }
+  .fig figcaption { margin-top: 11px; font-size: 13px; color: var(--faint); line-height: 1.6; max-width: 80ch; }
+  .fig text { font-family: Inter, system-ui, sans-serif; }
+  .fig .t { fill: var(--fg); font-size: 13px; font-weight: 600; }
+  .fig .s { fill: var(--dim); font-size: 11.5px; }
+  .fig .v { fill: var(--dim); font-size: 12.5px; }
+  .fig .k { fill: var(--faint); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
+  .fig .bx { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.5; }
+  .fig .bx-bad { fill: var(--bad-soft); stroke: var(--bad); stroke-width: 1.5; stroke-dasharray: 5 3; }
+  .fig .bx-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.5; stroke-dasharray: 5 3; }
+  .fig .bx-ok { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+  .fig .ln { stroke: var(--dim); stroke-width: 1.5; fill: none; }
+  .fig .lbl { fill: var(--dim); font-size: 11.5px; }
+  .fig .y { fill: var(--accent); font-size: 12.5px; font-weight: 600; }
+  .fig .n { fill: var(--bad); font-size: 12.5px; font-weight: 600; }
+
+  /* ---------- evidence ---------- */
+  .evid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .ev {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 4px;
+    padding: 20px 21px 21px; min-width: 0;
+  }
+  .ev .big {
+    font-family: "Space Grotesk", sans-serif; font-size: 34px; font-weight: 700;
+    line-height: 1.05; letter-spacing: -.02em; color: var(--accent); margin-bottom: 6px;
+  }
+  .ev .big.alt { color: var(--bad); }
+  .ev h3 { font-size: 15px; font-weight: 600; margin-bottom: 7px; }
+  .ev p { margin: 0; font-size: 14px; color: var(--dim); }
+  .src {
+    display: inline-block; margin-top: 12px; font-size: 11.5px; letter-spacing: .03em;
+    color: var(--faint); border-top: 1px solid var(--line); padding-top: 9px; width: 100%;
+  }
+
+  /* ---------- footer ---------- */
+  .foot { margin-top: 46px; padding-top: 26px; border-top: 1px solid var(--line); }
+  .foot h3 { font-size: 13px; letter-spacing: .11em; text-transform: uppercase; color: var(--dim); margin-bottom: 12px; }
+  .foot ul { margin: 0; padding-left: 18px; font-size: 14px; color: var(--dim); }
+  .foot li { margin-bottom: 7px; }
+
+  @media (max-width: 720px) {
+    .zones { grid-template-columns: 1fr; }
+    .steps::before { left: 19px; }
+    .step { padding-left: 52px; }
+    .step-num { width: 40px; height: 40px; font-size: 14px; }
+    body { font-size: 16px; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="page-head">
+    <div class="eyebrow">Monad Blitz 广州 · 2026-11-21 · 演示用图</div>
+    <h1>SpendSeal
+      <span class="thin">Agent 花钱时的强制执行点，在合约里</span>
+    </h1>
+    <p class="thesis">
+      行业已经铺好了身份、支付轨道、授权证据三层。缺的是第四层——
+      <b>付款那一刻，由谁按主人的规矩说“不”</b>。
+      我们把这一层从厂商服务器搬进合约：钱不在 Agent 手里，在金库合约里。
+    </p>
+    <div class="meta">
+      <span><span class="k">链</span> Monad testnet · 10143</span>
+      <span><span class="k">金库</span> <span class="mono">0x8881…7cf1</span></span>
+      <span><span class="k">资产</span> USDC（Circle 测试网）</span>
+      <span><span class="k">测试</span> 17 / 17</span>
+    </div>
+  </header>
+
+  <!-- ================= 01 架构 ================= -->
+  <section id="arch">
+    <h2><span class="num">01</span> 架构：谁在哪一侧</h2>
+    <p class="lede">
+      整套设计的起点是一条边界：<b>Agent 所在的环境默认会被攻陷</b>，主人的签名设备不会。
+      所以管理权和用钱权必须分处两个信任域，而强制点只能落在两者之外的第三个地方——合约。
+    </p>
+
+    <div class="zones">
+      <div class="zone untrusted">
+        <div class="zone-h"><span>不可信域</span><span class="tag">假定会被攻陷</span></div>
+        <ul>
+          <li>Claude Desktop 与模型上下文</li>
+          <li>MCP 桥进程（持有 agent 私钥）</li>
+          <li>卖家 API 与本机网络路径</li>
+        </ul>
+        <div class="note">这一域里的一切都可能被提示注入、被偷、被替换。设计上不依赖它守规矩。</div>
+      </div>
+      <div class="zone trusted">
+        <div class="zone-h"><span>可信域</span><span class="tag">只有它能改规矩</span></div>
+        <ul>
+          <li>主人钱包（MetaMask / 硬件钱包 / 多签）</li>
+          <li>改限额、加白名单、熔断、提款</li>
+        </ul>
+        <div class="note">Agent 的工具面里没有这些操作——不是被禁止，是<b>不存在</b>。</div>
+      </div>
+    </div>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+        <svg viewBox="0 0 1080 360" role="img" aria-label="架构图：主人钱包在可信域，Agent 与卖家在不可信域，PassportVault 是唯一强制点并托管全部 USDC。">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" style="fill: var(--dim)"/>
+            </marker>
+            <marker id="ar-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" style="fill: var(--accent)"/>
+            </marker>
+          </defs>
+
+          <!-- 域背景 -->
+          <rect x="10" y="26" width="270" height="330" rx="4" style="fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1"/>
+          <rect x="350" y="26" width="380" height="330" rx="4" style="fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1"/>
+          <rect x="800" y="26" width="270" height="330" rx="4" style="fill: var(--bad-soft); stroke: var(--bad); stroke-width: 1.5; stroke-dasharray: 6 4"/>
+
+          <text class="k" x="145" y="16" text-anchor="middle" style="fill: var(--accent)">可信域</text>
+          <text class="k" x="540" y="16" text-anchor="middle">链上 · 强制点</text>
+          <text class="k" x="935" y="16" text-anchor="middle" style="fill: var(--bad)">不可信域</text>
+
+          <!-- 主人 -->
+          <rect class="bx-ok" x="35" y="80" width="220" height="120" rx="3"/>
+          <text class="t" x="145" y="112" text-anchor="middle">主人钱包</text>
+          <text class="s" x="145" y="134" text-anchor="middle">MetaMask / 硬件钱包 / 多签</text>
+          <text class="v" x="145" y="160" text-anchor="middle" font-family="JetBrains Mono, monospace">0xF582…7Ea1</text>
+          <text class="s" x="145" y="182" text-anchor="middle">持有 owner key</text>
+
+          <!-- 金库 -->
+          <rect class="bx-ok" x="375" y="70" width="330" height="140" rx="3"/>
+          <text class="k" x="540" y="96" text-anchor="middle" style="fill: var(--accent)">强制点 · 无升级入口</text>
+          <text class="t" x="540" y="124" text-anchor="middle" style="font-size: 16">PassportVault</text>
+          <text class="s" x="540" y="148" text-anchor="middle">每个护照独立记账 · 逐笔校验</text>
+          <text class="v" x="540" y="176" text-anchor="middle" font-family="JetBrains Mono, monospace">0x8881…7cf1</text>
+          <text class="s" x="540" y="197" text-anchor="middle">存在→未熔断→未过期→白名单→单笔→日累计→余额</text>
+
+          <!-- USDC -->
+          <rect class="bx" x="375" y="250" width="330" height="72" rx="3"/>
+          <text class="t" x="540" y="278" text-anchor="middle">USDC（全部资金在这里）</text>
+          <text class="v" x="540" y="301" text-anchor="middle" font-family="JetBrains Mono, monospace">0x534b…43A3</text>
+
+          <!-- Agent -->
+          <rect class="bx-bad" x="825" y="50" width="220" height="110" rx="3"/>
+          <text class="t" x="935" y="80" text-anchor="middle">MCP 桥（agent）</text>
+          <text class="s" x="935" y="102" text-anchor="middle">agent 私钥 · 只有 gas</text>
+          <text class="v" x="935" y="124" text-anchor="middle" font-family="JetBrains Mono, monospace">0x6963…6F20</text>
+          <text class="s" x="935" y="144" text-anchor="middle">USDC 余额 0</text>
+
+          <!-- 卖家 -->
+          <rect class="bx-bad" x="825" y="220" width="220" height="110" rx="3"/>
+          <text class="t" x="935" y="250" text-anchor="middle">卖家 API</text>
+          <text class="s" x="935" y="272" text-anchor="middle">签名发票 · 按事件验付</text>
+          <text class="v" x="935" y="294" text-anchor="middle" font-family="JetBrains Mono, monospace">0xC451…A06</text>
+          <text class="s" x="935" y="314" text-anchor="middle">拿不到付款证明不发货</text>
+
+          <!-- 连线 -->
+          <line class="ln" x1="255" y1="140" x2="371" y2="140" marker-end="url(#ar-ok)" style="stroke: var(--accent)"/>
+          <text class="lbl" x="313" y="120" text-anchor="middle">改限额 / 白名单</text>
+          <text class="lbl" x="313" y="164" text-anchor="middle">熔断 / 提款</text>
+
+          <line class="ln" x1="540" y1="210" x2="540" y2="246" marker-end="url(#ar)"/>
+          <text class="lbl" x="552" y="234">transfer</text>
+
+          <line class="ln" x1="821" y1="105" x2="709" y2="105" marker-end="url(#ar-ok)" style="stroke: var(--accent)"/>
+          <text class="lbl" x="752" y="85" text-anchor="middle">④ tryPay()</text>
+          <text class="lbl" x="752" y="127" text-anchor="middle">唯一花钱的路</text>
+
+          <line class="ln" x1="935" y1="164" x2="935" y2="216" marker-start="url(#ar)" marker-end="url(#ar)" style="stroke-dasharray: 4 3"/>
+          <rect x="842" y="176" width="186" height="20" rx="3" style="fill: var(--bad-soft)"/>
+          <text class="lbl" x="935" y="190" text-anchor="middle">① 请求 → 402 发票 ⇄ ⑤ 重试</text>
+        </svg>
+      </div>
+      <figcaption>钱从左到右没有一条直连：Agent 付 USDC 必须先请求金库，金库只认护照里的规矩。主人能在左侧改规矩，但改不了已经发生的交易；卖家能拿钱，但只能拿到金库转出的那笔。</figcaption>
+    </figure>
+
+    <div class="components">
+      <div class="comp">
+        <div class="comp-h"><h3>主人钱包</h3><span class="who">owner</span></div>
+        <div class="addr mono">0xF582…7Ea1</div>
+        <p class="can">创建护照、设限额、管白名单</p>
+        <p class="can">熔断、提回余额（熔断后也可提）</p>
+        <p class="cant">不能替 Agent 发起付款</p>
+      </div>
+
+      <div class="comp">
+        <div class="comp-h"><h3>MCP 桥</h3><span class="who">agent</span></div>
+        <div class="addr mono">0x6963…6F20</div>
+        <p class="can">只暴露两个工具：<code>pay_for_api</code>、<code>passport_status</code></p>
+        <p class="can">付款前验卖家发票签名、做链上预检</p>
+        <p class="cant">没有任何管理工具（限额/白名单/熔断/提款）</p>
+      </div>
+
+      <div class="comp">
+        <div class="comp-h"><h3>卖家 API</h3><span class="who">seller</span></div>
+        <div class="addr mono">0xC451…A06</div>
+        <p class="can">无付款证明时返回 402 + 签名发票</p>
+        <p class="can">按链上 <code>PaymentExecuted</code> 事件验付后发货</p>
+        <p class="cant">不能凭口头承诺发货</p>
+      </div>
+
+      <div class="comp enforce">
+        <div class="comp-h"><h3>PassportVault</h3><span class="who">强制点</span></div>
+        <div class="addr mono">0x8881…7cf1</div>
+        <p class="can">托管全部 USDC，按护照隔离记账</p>
+        <p class="can">付款路径内逐条校验：未熔断 → 未过期 → 白名单 → 单笔 → UTC 日累计 → 余额</p>
+        <p class="cant">没有升级入口，没人能在部署后改规矩</p>
+      </div>
+
+      <div class="comp">
+        <div class="comp-h"><h3>USDC</h3><span class="who">资产</span></div>
+        <div class="addr mono">0x534b…43A3</div>
+        <p class="can">Circle 官方测试网代币，6 位小数</p>
+        <p class="cant">不直接进 Agent 地址——这正是设计核心</p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <span class="lbl">为什么这条边界能成立</span>
+      Agent 地址自己<b>一分 USDC 都没有</b>，只有付 gas 的 MON。所有钱托管在金库、按护照记账。
+      所以“绕过护照”不是一个被堵住的漏洞，而是一条<b>不存在的路</b>：USDC 不在它手里，它没有可绕过的余额。
+    </div>
+  </section>
+
+  <!-- ================= 02 六步 ================= -->
+  <section id="flow">
+    <h2><span class="num">02</span> 一笔付款走六步</h2>
+    <p class="lede">
+      六步不是凑完整，是这笔交易里有<b>两个互不信任的主体</b>：买家要知道价、不被骗价、按规矩付；
+      卖家要确认真收到、且只发一次货。每一步堵一个具体的洞。
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+        <svg viewBox="0 0 1080 620" role="img" aria-label="时序图：Agent、卖家、PassportVault 三方在一笔付款里的六次交互，其中只有两步真正在链上。">
+          <defs>
+            <marker id="sq" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" style="fill: var(--dim)"/>
+            </marker>
+            <marker id="sq-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" style="fill: var(--accent)"/>
+            </marker>
+            <marker id="sq-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" style="fill: var(--bad)"/>
+            </marker>
+          </defs>
+
+          <!-- 头部 -->
+          <rect class="bx-bad" x="30" y="14" width="220" height="52" rx="3"/>
+          <text class="t" x="140" y="38" text-anchor="middle">Agent（MCP 桥）</text>
+          <text class="s" x="140" y="56" text-anchor="middle">不可信域</text>
+
+          <rect class="bx-bad" x="430" y="14" width="220" height="52" rx="3"/>
+          <text class="t" x="540" y="38" text-anchor="middle">卖家 API</text>
+          <text class="s" x="540" y="56" text-anchor="middle">不可信域</text>
+
+          <rect class="bx-ok" x="830" y="14" width="220" height="52" rx="3"/>
+          <text class="t" x="940" y="38" text-anchor="middle">PassportVault</text>
+          <text class="s" x="940" y="56" text-anchor="middle">链上强制点</text>
+
+          <!-- 生命线 -->
+          <line class="ln" x1="140" y1="66" x2="140" y2="596" style="stroke: var(--line-strong); stroke-dasharray: 4 4"/>
+          <line class="ln" x1="540" y1="66" x2="540" y2="596" style="stroke: var(--line-strong); stroke-dasharray: 4 4"/>
+          <line class="ln" x1="940" y1="66" x2="940" y2="596" style="stroke: var(--line-strong); stroke-dasharray: 4 4"/>
+
+          <!-- ① 报价 -->
+          <line class="ln" x1="540" y1="110" x2="144" y2="110" marker-end="url(#sq)"/>
+          <rect x="256" y="90" width="196" height="17" style="fill: var(--bg)"/>
+          <text class="v" x="354" y="103" text-anchor="middle">① GET 资源 → 402 + 签名发票</text>
+          <text class="s" x="354" y="130" text-anchor="middle">链下 · 卖家报价，买方知道价</text>
+
+          <!-- ② 验签 -->
+          <rect class="bx" x="30" y="150" width="220" height="66" rx="3"/>
+          <text class="t" x="140" y="174" text-anchor="middle" style="font-size: 12.5">② 验 EIP-712 签名</text>
+          <text class="s" x="140" y="193" text-anchor="middle">签名者 ≠ payTo → 直接终止</text>
+          <text class="s" x="140" y="209" text-anchor="middle">不发任何交易</text>
+
+          <!-- ③ checkPay -->
+          <line class="ln" x1="140" y1="262" x2="936" y2="262" marker-end="url(#sq)" style="stroke-dasharray: 5 4"/>
+          <rect x="452" y="240" width="176" height="17" style="fill: var(--bg)"/>
+          <text class="v" x="540" y="254" text-anchor="middle">③ checkPay（预检 · 可省）</text>
+          <rect x="410" y="268" width="260" height="16" style="fill: var(--bg)"/>
+          <text class="s" x="540" y="280" text-anchor="middle">省 gas + 拿到 reasonCode，不是安全防线</text>
+
+          <!-- ④ tryPay -->
+          <line class="ln" x1="140" y1="330" x2="936" y2="330" marker-end="url(#sq-ok)" style="stroke: var(--accent); stroke-width: 2.5"/>
+          <rect x="430" y="308" width="220" height="18" style="fill: var(--bg)"/>
+          <text class="v" x="540" y="322" text-anchor="middle" style="fill: var(--accent); font-weight: 600">④ tryPay：唯一的强制点</text>
+          <rect x="352" y="337" width="376" height="16" style="fill: var(--bg)"/>
+          <text class="s" x="540" y="349" text-anchor="middle">存在 → 未熔断 → 未过期 → 白名单 → 单笔 → 日累计 → 余额</text>
+
+          <!-- 事件 -->
+          <rect class="bx-ok" x="830" y="368" width="220" height="44" rx="3"/>
+          <text class="t" x="940" y="388" text-anchor="middle" style="font-size: 12.5">PaymentExecuted</text>
+          <text class="s" x="940" y="404" text-anchor="middle">payee · amount · ref</text>
+
+          <!-- ⑤ 重试 -->
+          <line class="ln" x1="140" y1="448" x2="536" y2="448" marker-end="url(#sq)"/>
+          <text class="v" x="338" y="438" text-anchor="middle">⑤ 带 X-PAYMENT-TX 重试</text>
+          <text class="s" x="338" y="466" text-anchor="middle">链下 · 把交易哈希交给卖家</text>
+
+          <!-- ⑥ 验付 -->
+          <line class="ln" x1="540" y1="510" x2="936" y2="510" marker-end="url(#sq)"/>
+          <text class="v" x="738" y="500" text-anchor="middle">⑥ 读事件：payee / amount / ref 全对？</text>
+
+          <!-- 发货 -->
+          <line class="ln" x1="540" y1="560" x2="144" y2="560" marker-end="url(#sq-ok)" style="stroke: var(--accent)"/>
+          <text class="v" x="342" y="550" text-anchor="middle" style="fill: var(--accent)">200 OK + 截图 · 同一 nonce 第二次 → 拒</text>
+          <text class="s" x="342" y="578" text-anchor="middle">防重放：一张发票只兑一次</text>
+        </svg>
+      </div>
+      <figcaption>六步里只有 ④ 是安全边界；② 发生在任何交易之前，是“不让一张假发票上链”的那一步；⑤⑥ 让卖家也能自己验证，而不必相信买家的话。</figcaption>
+    </figure>
+
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num">01</div>
+        <div class="step-body">
+          <div class="step-top"><h3>卖家报价：HTTP 402 + 结构化发票</h3><span class="pill off">链下</span></div>
+          <p class="hit">Agent 不知道付多少、付给谁、什么币、哪个合约、何时过期——发票一次给全。</p>
+          <p class="miss">只能盲转，退回“裸钱包 + 一句口头报价”。</p>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-num">02</div>
+        <div class="step-body">
+          <div class="step-top"><h3>验签：EIP-712，签名者必须等于收款方</h3><span class="pill off">链下</span></div>
+          <p class="hit">防中间人改金额、换收款地址。改一个字，签名立刻失效，交易根本不发出。</p>
+          <p class="miss">篡改发票、钓鱼发票全拦不住——<b>Agent 在盲签</b>。</p>
+        </div>
+      </li>
+
+      <li class="step optional">
+        <div class="step-num">03</div>
+        <div class="step-body">
+          <div class="step-top"><h3>链上预检 <code>checkPay</code></h3><span class="pill opt">可省 · 不是安全防线</span></div>
+          <p class="hit">省 gas（必然失败的交易不上链）、给 Agent 结构化的失败原因、触发拒绝上链审计。</p>
+          <p class="miss">安全不变（合约照样会拒），但白付 gas、Agent 只能从 revert 里反推、大屏拦截计数没数据。</p>
+        </div>
+      </li>
+
+      <li class="step onchain">
+        <div class="step-num">04</div>
+        <div class="step-body">
+          <div class="step-top"><h3>付款 <code>tryPay</code>：合约逐条校验</h3><span class="pill on">链上 · 核心</span></div>
+          <p class="hit">存在 → 未熔断 → 未过期 → 白名单 → 单笔限额 → UTC 日累计 → 余额。任一不过就拒。</p>
+          <p class="miss">整个项目失去意义：Agent 可以超额、付给任何人、泄露后任意花。</p>
+        </div>
+      </li>
+
+      <li class="step onchain">
+        <div class="step-num">05</div>
+        <div class="step-body">
+          <div class="step-top"><h3>卖家验付：按 <code>PaymentExecuted</code> 事件核对</h3><span class="pill on">链上</span></div>
+          <p class="hit">核对收款方、金额、发票绑定的 <code>ref</code>——三者对上才发货。</p>
+          <p class="miss">卖家只能信 Agent 的口头话：少付、拿别人的交易来骗货都拦不住。</p>
+        </div>
+      </li>
+
+      <li class="step onchain">
+        <div class="step-num">06</div>
+        <div class="step-body">
+          <div class="step-top"><h3>发票 nonce 一次性消费</h3><span class="pill on">链上</span></div>
+          <p class="hit">一张发票只能兑付一次；同一笔交易重放，直接 <code>nonce_already_consumed</code>。</p>
+          <p class="miss">一笔 0.05 USDC 可以无限次白嫖同一份截图。</p>
+        </div>
+      </li>
+    </ol>
+
+    <div class="callout warn">
+      <span class="lbl">诚实边界：哪一步可以省</span>
+      第 ③ 步严格说可以省——安全边界在合约，不在预检。它的定位是<b>经济性 + 可解释性 + 审计</b>，不是防线。
+      真正不能少的是四步：<b>报价（知道价）、验签（不被骗价）、合约校验（按规矩付）、验付 + 防重放（确认真收到、只发一次货）</b>。
+      缺一个，买卖闭环就断。
+    </div>
+  </section>
+
+  <!-- ================= 03 覆盖率 ================= -->
+  <section id="compare">
+    <h2><span class="num">03</span> 六步覆盖率：谁做了哪几步</h2>
+    <p class="lede">
+      单看每一步，几乎都有人做过。<b>但把六步放进同一个能买到东西的闭环，并且把强制点只放在合约里</b>——这是我们检索后未见完整同款的部分。
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+        <svg viewBox="0 0 1080 470" role="img" aria-label="三条路径对比：普通支付把是否放行交给发卡行，官方 x402 交给生态里的服务器，本项目交给合约；只有第三条路径在付款前校验卖家签名的报价。">
+          <defs>
+            <marker id="cp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" style="fill: var(--dim)"/>
+            </marker>
+            <marker id="cp-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" style="fill: var(--accent)"/>
+            </marker>
+          </defs>
+
+          <text class="k" x="16" y="18">谁在说“不”</text>
+          <text class="s" x="16" y="40">三条路径，同一个问题：这笔钱该不该出</text>
+
+          <!-- 列标题 -->
+          <text class="k" x="150" y="72" text-anchor="middle">Agent</text>
+          <text class="k" x="470" y="72" text-anchor="middle">判定在哪</text>
+          <text class="k" x="800" y="72" text-anchor="middle">卖家</text>
+          <text class="k" x="990" y="72" text-anchor="middle">买家看得见报价？</text>
+
+          <!-- ============ 1 普通支付 ============ -->
+          <text class="t" x="16" y="124" style="fill: var(--dim); font-size: 12">普通</text>
+          <text class="t" x="16" y="138" style="fill: var(--dim); font-size: 12">支付</text>
+          <rect class="bx" x="70" y="96" width="160" height="56" rx="3"/>
+          <text class="v" x="150" y="120" text-anchor="middle">人点确认</text>
+          <text class="s" x="150" y="138" text-anchor="middle">卡号 / 账户授权</text>
+
+          <line class="ln" x1="234" y1="124" x2="356" y2="124" marker-end="url(#cp)"/>
+          <text class="lbl" x="295" y="112" text-anchor="middle">授权</text>
+
+          <rect class="bx-warn" x="360" y="96" width="220" height="56" rx="3"/>
+          <text class="t" x="470" y="120" text-anchor="middle" style="font-size: 12.5">发卡行 / 平台风控</text>
+          <text class="s" x="470" y="138" text-anchor="middle">额度、反欺诈、拒付</text>
+
+          <line class="ln" x1="584" y1="124" x2="704" y2="124" marker-end="url(#cp)"/>
+          <rect class="bx" x="708" y="96" width="184" height="56" rx="3"/>
+          <text class="v" x="800" y="128" text-anchor="middle">收款</text>
+
+          <text class="n" x="990" y="128" text-anchor="middle">✕ 靠 TLS</text>
+
+          <!-- ============ 2 官方 x402 ============ -->
+          <text class="t" x="16" y="218" style="fill: var(--dim); font-size: 12">官方</text>
+          <text class="t" x="16" y="232" style="fill: var(--dim); font-size: 12">x402</text>
+          <rect class="bx" x="70" y="190" width="160" height="56" rx="3"/>
+          <text class="v" x="150" y="214" text-anchor="middle">Agent 签名</text>
+          <text class="s" x="150" y="232" text-anchor="middle">EIP-3009 支付授权</text>
+
+          <line class="ln" x1="234" y1="218" x2="356" y2="218" marker-end="url(#cp)"/>
+          <text class="lbl" x="295" y="206" text-anchor="middle">带钱来</text>
+
+          <rect class="bx-warn" x="360" y="190" width="220" height="56" rx="3"/>
+          <text class="t" x="470" y="214" text-anchor="middle" style="font-size: 12.5">facilitator / 服务器</text>
+          <text class="s" x="470" y="232" text-anchor="middle">在生态里替人决定</text>
+
+          <line class="ln" x1="584" y1="218" x2="704" y2="218" marker-end="url(#cp)"/>
+          <rect class="bx" x="708" y="190" width="184" height="56" rx="3"/>
+          <text class="v" x="800" y="222" text-anchor="middle">发货</text>
+
+          <text class="n" x="990" y="222" text-anchor="middle">✕ 签的是支付授权</text>
+
+          <!-- ============ 3 本项目 ============ -->
+          <text class="t" x="16" y="322" style="fill: var(--accent); font-size: 12.5; font-weight: 700">本项目</text>
+          <rect class="bx-ok" x="70" y="284" width="160" height="76" rx="3"/>
+          <text class="v" x="150" y="308" text-anchor="middle" style="fill: var(--accent)">② 先验卖家签名</text>
+          <text class="s" x="150" y="326" text-anchor="middle">签名者必须 = 收款方</text>
+          <text class="s" x="150" y="344" text-anchor="middle">不通过 → 一笔不发</text>
+
+          <line class="ln" x1="234" y1="322" x2="356" y2="322" marker-end="url(#cp-ok)" style="stroke: var(--accent)"/>
+          <text class="lbl" x="295" y="310" text-anchor="middle" style="fill: var(--accent)">④ tryPay</text>
+
+          <rect class="bx-ok" x="360" y="292" width="220" height="60" rx="3"/>
+          <text class="t" x="470" y="316" text-anchor="middle" style="fill: var(--accent); font-size: 12.5">PassportVault</text>
+          <text class="s" x="470" y="336" text-anchor="middle">限额 · 白名单 · 余额 · 熔断</text>
+
+          <line class="ln" x1="584" y1="322" x2="704" y2="322" marker-end="url(#cp-ok)" style="stroke: var(--accent)"/>
+          <rect class="bx-ok" x="708" y="294" width="184" height="56" rx="3"/>
+          <text class="v" x="800" y="318" text-anchor="middle" style="fill: var(--accent)">⑤ 按事件验付</text>
+          <text class="s" x="800" y="336" text-anchor="middle">发货</text>
+
+          <text class="y" x="990" y="322" text-anchor="middle">✓ 签的是报价本身</text>
+
+          <!-- 分界 -->
+          <line x1="16" y1="166" x2="1064" y2="166" style="stroke: var(--line); stroke-width: 1"/>
+          <line x1="16" y1="266" x2="1064" y2="266" style="stroke: var(--line); stroke-width: 1"/>
+
+          <!-- 结论行 -->
+          <rect x="16" y="386" width="1048" height="64" rx="3" style="fill: var(--surface-2)"/>
+          <text class="v" x="36" y="412">同样的钱、同样的链、同样的 402 —— 差别只在判定发生在谁的机器上。前两条里，判定发生在 Agent 够得着的环境；</text>
+          <text class="v" x="36" y="434" style="fill: var(--fg); font-weight: 600">第三条把它放在合约里，并且多了一道“报价是不是卖家亲口说的”检查。</text>
+        </svg>
+      </div>
+      <figcaption>横着看三行：中间那格就是“谁在说 不”。这一格从发卡行移到服务器，再移到合约——这是三条路径唯一的实质差别。</figcaption>
+    </figure>
+
+    <div class="tbl-wrap">
+      <table>
+        <caption>按付款六步逐项打点</caption>
+        <thead>
+          <tr>
+            <th scope="col">步骤</th>
+            <th scope="col">普通支付</th>
+            <th scope="col">官方 x402 生态</th>
+            <th scope="col">服务器侧护栏<br><span style="font-weight:400;text-transform:none;letter-spacing:0">Circle / Coinbase / AP2</span></th>
+            <th scope="col">本项目</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>① 402 报价</b></td>
+            <td class="n">✕<span class="sub">人要看见收银台</span></td>
+            <td class="y">✓</td>
+            <td class="p">◐<span class="sub">部分支持</span></td>
+            <td class="y">✓</td>
+          </tr>
+          <tr>
+            <td><b>② 卖家签报价 + 买家付款前验签</b></td>
+            <td class="n">✕<span class="sub">靠 TLS</span></td>
+            <td class="n">✕<span class="sub">签的是支付授权，不是报价</span></td>
+            <td class="n">✕<span class="sub">靠 TLS</span></td>
+            <td class="y">✓<span class="sub">签名者必须等于收款方</span></td>
+          </tr>
+          <tr>
+            <td><b>③ 链上预检</b></td>
+            <td class="n">✕</td>
+            <td class="p">◐<span class="sub">客户端</span></td>
+            <td class="p">◐<span class="sub">服务器检查</span></td>
+            <td class="y">✓</td>
+          </tr>
+          <tr>
+            <td><b>④ 合约内逐条校验</b></td>
+            <td class="n">✕<span class="sub">平台/发卡方执行</span></td>
+            <td class="n">✕<span class="sub">规格无预算字段</span></td>
+            <td class="n">✕<span class="sub">在厂商服务器上执行</span></td>
+            <td class="y">✓<span class="sub">唯一的无服务器执行</span></td>
+          </tr>
+          <tr>
+            <td><b>⑤ 事件验付</b></td>
+            <td class="p">◐<span class="sub">事后对账</span></td>
+            <td class="y">✓</td>
+            <td class="p">◐</td>
+            <td class="y">✓</td>
+          </tr>
+          <tr>
+            <td><b>⑥ 防重放</b></td>
+            <td class="p">◐</td>
+            <td class="y">✓</td>
+            <td class="p">◐</td>
+            <td class="y">✓</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <span class="lbl">读法（三句话，台上够用）</span>
+      ①⑤⑥ 是 x402 生态的成熟件，我们不声称发明；④ 在 Sentinel（EIP-7702 账户级）和 KeeperCard（ERC-7710 caveat）身上也见过无服务器版本，那是我们设计上的参照与致敬。
+      <b>真正没有同款的是 ②</b>：卖家对<b>这张报价</b>签名、买家桥在付款前先验签——别人签的是结算授权或协议授权，不是报价。
+    </div>
+
+    <div class="callout bad">
+      <span class="lbl">为什么 ② 是这六步里最关键的一步</span>
+      合约看到的只有 <code>(payee, amount, ref)</code>，它<b>看不到报价</b>。所以护照的每一条规则都可能全部通过，而付的是一张被改过的假发票——
+      这就是“盲签”。②把报价在源头用密码学签死，这是六步里<b>唯一把“信任网络”换成“信任数学”</b>的一步。
+    </div>
+  </section>
+
+  <!-- ================= 04 痛点 ================= -->
+  <section id="pain">
+    <h2><span class="num">04</span> 为什么非做不可</h2>
+    <p class="lede">
+      不是“未来可能需要”，是三件已经发生的事：规矩放错地方已被实验证明失效，责任已经划给用户，钱已经在以亿笔量级流动。
+    </p>
+
+    <div class="evid">
+      <div class="ev">
+        <div class="big alt">9 / 10</div>
+        <h3>规矩放在 Agent 够得着的地方，等于没有</h3>
+        <p>十个前沿模型各配真实钱包、日限额 0.01 美元。九个自己去主人邮箱翻出验证码，给自己提了额——无越狱、无攻击者。团队披露后，Circle 在官方文档加了警告。</p>
+        <span class="src">Cornell Tech / Yale · arXiv:2610.35835（预印本）· 口径：每模型 20 次运行至少 1 次</span>
+      </div>
+
+      <div class="ev">
+        <div class="big">18 分钟</div>
+        <h3>Agent 拿到钱就开始花</h3>
+        <p>x402 钱包从首次注资到首次付款的中位时间，从 2025 年底的 73 天缩短到 2026 Q3 的 18 分钟。中间没有“人想一想”的缓冲。</p>
+        <span class="src">Chainalysis · 2026-10-14（二手）</span>
+      </div>
+
+      <div class="ev">
+        <div class="big alt">责任在用户</div>
+        <h3>事后没有地方安放</h3>
+        <p>Visa 规则手册：持卡人对 Agent 行为负责“如同本人发起”，争议码表没有 Agent 购买这一类。Stripe 条款：无论是否由 bug、幻觉或误解造成。链上更硬——结算即终局，没有拒付。</p>
+        <span class="src">Visa 规则手册 §4.1.24.10 / Stripe Link 条款（经条款分析核对）</span>
+      </div>
+    </div>
+
+    <div class="callout">
+      <span class="lbl">结论</span>
+      当责任无法在事后安放时，<b>事前在付款时刻拦住，就是唯一的损失边界</b>。
+      普通支付把它交给人，官方 x402 把它交给生态（而生态把它交给服务器），我们把它交给合约。
+    </div>
+  </section>
+
+  <!-- ================= 05 适用领域 ================= -->
+  <section id="fit">
+    <h2><span class="num">05</span> 适用领域：什么时候该用，什么时候不该用</h2>
+    <p class="lede">
+      这套设计不是所有 Agent 支付的最优解。它在<b>四个条件同时成立</b>时才有价值；否则有更简单、更便宜的选择。
+    </p>
+
+    <div class="tbl-wrap">
+      <table>
+        <caption>按场景选择</caption>
+        <thead>
+          <tr>
+            <th scope="col">场景</th>
+            <th scope="col">更合适的选择</th>
+            <th scope="col">原因</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>单笔小额、损失可接受<br><span class="sub">例：每次 0.05 买一张图，预充 5 美元</span></td>
+            <td class="p">预充钱包</td>
+            <td>余额本身就是上限，简单、便宜、零 gas 额外开销</td>
+          </tr>
+          <tr>
+            <td>需要 gas 代付 / 批量结算<br><span class="sub">例：让终端用户完全不碰 gas</span></td>
+            <td class="p">官方 x402 + facilitator</td>
+            <td>我们刻意不引入 facilitator，这是真实代价</td>
+          </tr>
+          <tr>
+            <td>需要退款、争议处理<br><span class="sub">例：买错要能申诉</span></td>
+            <td class="p">卡网络</td>
+            <td>链上结算即终局，没有申诉通道</td>
+          </tr>
+          <tr class="ours">
+            <td>跨厂商累计 + 无信任执行 + 自助撤销<br><span class="sub">例：Agent 代买、密钥可能泄露、责任全在主人</span></td>
+            <td class="y">本项目</td>
+            <td>三者同时成立时，只有“合约执行”这一条路能满足</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="tbl-wrap" style="margin-top:16px">
+      <table>
+        <caption>同一套护照语义可以覆盖的卖方类型（横向价值）</caption>
+        <thead>
+          <tr>
+            <th scope="col">卖方类型</th>
+            <th scope="col">计价形态</th>
+            <th scope="col">护照约束的仍是同一件事</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>按次调用的 API</td><td>每次 0.05 USDC</td><td rowspan="4" style="vertical-align:middle;border-left:1px solid var(--line)">
+            单笔上限、UTC 日累计、收款白名单、即时熔断——<br>
+            <b>无论收款方是谁，答案都来自同一份合约</b>
+          </td></tr>
+          <tr><td>数据 / 算力 / 推理服务</td><td>按 token 或按次</td></tr>
+          <tr><td>数字内容与工具订阅</td><td>按小时或按天</td></tr>
+          <tr><td>直播 / 互动类微支付</td><td>秒级小额（调研阶段，未纳入本次构建）</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warn">
+      <span class="lbl">为什么最后一行刻意没做</span>
+      直播互动类微支付在调研阶段评估过（观众押几美分猜 60 秒内的问题）。它<b>不在本次构建里</b>：一是范围纪律，
+      二是博彩相邻产品需要我们没有做过的合规评估。把它放进来只会稀释主线——但它能说明缺的那一层是横向的。
+    </div>
+  </section>
+
+  <footer class="foot">
+    <h3>台上口径边界（说错会被懂行的评委纠正）</h3>
+    <ul>
+      <li>不说“首创 / 第一个做链上强制”——ERC-7710 本身就是链上强制；我们的增量是<b>组合与强制层级</b>。</li>
+      <li>不说“管控层是空白”——限额产品不空，缺的是<b>跨厂商累计 + 无信任执行 + 主人自助撤销</b>。</li>
+      <li>不说“$25B 是 Monad 上的量”——那是 Visa 全网年化量；Monad 是被纳入结算网络名单。</li>
+      <li>不报两个终局数字（400ms / 800ms 口径不一）——只说<b>“亚秒级终局”</b>。</li>
+      <li>不把 x402 生态说成我们的发明——①⑤⑥ 是成熟件，我们补的是 ② 和“强制点只在合约”。</li>
+      <li>x402 修正后的真实量有两个版本（1,500 万 / 1,900 万），无法赛前核实——只说<b>“千万美元级”</b>。</li>
+    </ul>
+  </footer>
+
+</div>

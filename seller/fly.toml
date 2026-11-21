@@ -1,0 +1,21 @@
+# Fly.io config for the SpendSeal seller API.
+# First deploy: see DEPLOY.md. Secrets (SELLER_PRIVATE_KEY etc.) are set with
+# `fly secrets set`, never in this file.
+app = "spendseal-seller"
+primary_region = "hkg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8787"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  # Exactly one machine: invoices/nonce state is in-memory by design (demo).
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb" # headless Chrome needs the room

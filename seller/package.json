@@ -1,0 +1,1 @@
+{"dependencies":{"puppeteer":"^23.0.0","viem":"^2.21.0"},"description":"SpendSeal seller: paid screenshot API — HTTP 402 + EIP-712 signed invoices + on-chain payment verification.","name":"spendseal-seller","private":true,"scripts":{"start":"node src/server.js","test:e2e":"node test/e2e.mjs"},"type":"module","version":"0.1.0"}
