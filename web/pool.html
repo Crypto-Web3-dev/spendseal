@@ -134,7 +134,7 @@ const call = (data) => rpc("eth_call", [{ to: POOL, data }, "latest"]);
 const enc2 = (sel, a, b) => sel + word(a) + word(b);
 
 // ===== 读状态 =====
-let knownRequests = new Map(); // rid(string) -> {agent, payee, amount, ref}
+let knownRequests = new Set(); // rid(string) — 只记「有这个申请」，字段一律回链上读
 let feedItems = [];
 let scannedTo = null;
 
@@ -168,7 +168,7 @@ async function scanLogs() {
       if (t === TOPIC.reqNew) {
         const rid = BigInt(lg.topics[2]).toString();
         const d = words(lg.data);
-        knownRequests.set(rid, { agent: wAddr(lg.topics[3]), payee: wAddr(d[0]), amount: BigInt("0x" + d[1]), ref: "0x" + d[2] });
+        knownRequests.add(rid);
         feedItems.push({ blk, txt: `✋ 申请 #${rid}：${label(wAddr(lg.topics[3]))} 请求付 ${usdc(BigInt("0x" + d[1]))} 给 ${label(wAddr(d[0]))}` });
       } else if (t === TOPIC.executed) {
         const d = words(lg.data);
@@ -187,9 +187,18 @@ async function scanLogs() {
 }
 async function readRequests() {
   const out = [];
-  for (const [rid, r] of knownRequests) {
+  for (const rid of knownRequests.keys()) {
+    // Logs only tell us WHICH request ids exist. Every field we show and act on
+    // is decoded fresh from getRequest, so a stale/reorged log line can never
+    // make the owner approve an amount the chain would not move.
     const w = words(await call(SEL.getRequest + word(POOL_ID) + word(BigInt(rid))));
-    out.push({ rid, ...r, state: Number(BigInt("0x" + w[4])) });
+    out.push({
+      rid,
+      agent: wAddr(w[0]),
+      payee: wAddr(w[1]),
+      amount: BigInt("0x" + w[2]),
+      state: Number(BigInt("0x" + w[4])),
+    });
   }
   return out.sort((a, b) => Number(BigInt(a.rid) - BigInt(b.rid)));
 }
@@ -243,29 +252,64 @@ async function refresh() {
 
 // ===== 钱包写入 =====
 let account = null;
+// Everything written here moves real USDC, so the network check must FAIL
+// CLOSED: if we cannot prove we are on chain 10143, no tx is sent at all.
+async function assertChain() {
+  const id = await window.ethereum.request({ method: "eth_chainId" });
+  if (id.toLowerCase() !== CHAIN_ID_HEX) {
+    throw new Error(`钱包当前在链 ${id}，不是 Monad 测试网（${CHAIN_ID_HEX}）——拒绝发送交易`);
+  }
+}
 $("btnConnect").onclick = async () => {
   try {
     if (!window.ethereum) { err("没检测到 MetaMask，请在装了 MetaMask 的浏览器打开本页"); return; }
     const accs = await window.ethereum.request({ method: "eth_requestAccounts" });
-    await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: CHAIN_ID_HEX }] })
-      .catch(() => {});
+    try {
+      await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: CHAIN_ID_HEX }] });
+    } catch (e) {
+      // Don't swallow this: an unswitched wallet is the wrong-chain case, and
+      // assertChain() below is what actually blocks the write. Surface it.
+      err("切换到 Monad 测试网失败（" + (e.message || e) + "）——请在钱包里手动切到链 10143");
+    }
+    await assertChain();
     account = accs[0];
     $("walletInfo").textContent = "已连接：" + label(account) + "（" + short(account) + "）";
     err("");
-  } catch (e) { err("连接钱包失败：" + e.message); }
+  } catch (e) { account = null; err("连接钱包失败：" + (e.message || e)); }
 };
 async function sendTx(data, btn) {
   if (!account) { err("先点「连接主人钱包」"); return; }
   btn.disabled = true;
   try {
+    // Re-check immediately before every write — the user may have switched
+    // networks in MetaMask since they connected.
+    await assertChain();
     await window.ethereum.request({ method: "eth_sendTransaction",
-      params: [{ from: account, to: POOL, data }] });
+      params: [{ from: account, to: POOL, data, chainId: CHAIN_ID_HEX }] });
     setTimeout(refresh, 2500);
   } catch (e) { err("交易失败：" + (e.message || e)); }
   btn.disabled = false;
 }
-window.decide = (rid, ok) => {
+window.decide = async (rid, ok) => {
   const btn = event.currentTarget;
+  btn.disabled = true;
+  try {
+    if (ok) {
+      // The deployed PoolVault does NOT re-check singleLimit inside
+      // approveRequest — an approval releases the amount recorded at request
+      // time. So re-read both request and pool now, and refuse to sign an
+      // approval whose amount is above the pool's CURRENT per-payment cap.
+      const w = words(await call(SEL.getRequest + word(POOL_ID) + word(BigInt(rid))));
+      const amount = BigInt("0x" + w[2]);
+      const p = await readPool();
+      if (amount > p.single) {
+        err(`拒绝批准：申请金额 ${usdc(amount)} 高于当前单笔上限 ${usdc(p.single)}。`
+          + `这份申请是在旧上限下开的，链上批准会直接放行——请主人先调低额度或让 Agent 重新申请。`);
+        btn.disabled = false;
+        return;
+      }
+    }
+  } catch (e) { err("批准前复核失败：" + (e.message || e)); btn.disabled = false; return; }
   sendTx((ok ? SEL.approveRequest : SEL.rejectRequest) + word(POOL_ID) + word(BigInt(rid)), btn);
 };
 $("btnRevoke").onclick = (e) => {
