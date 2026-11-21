@@ -60,7 +60,7 @@
 | 卡 A `0x6963…6F20` | 日额度 100,000（0.10 USDC），已花 0 |
 | 卡 B `0x4498…dfB3` | 日额度 150,000（0.15 USDC），已花 0 |
 
-池子演示用新页面 `web/pool.html`（地址已写死），原控制台 `web/index.html` 保持指向
+池子演示用新页面 `web/index.html`（地址已写死），原控制台 `web/index.html` 保持指向
 `PassportVault` 作兜底。`.env` 的 `VAULT_ADDRESS` 指向池子，桥与卖家因此自动跟随。
 
 ## 附带核验：P256 预编译

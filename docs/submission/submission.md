@@ -95,7 +95,7 @@ Agent 开始替人花钱了，但给它定的规矩不能放在它够得着的�
 
 - [ ] 仓库推到 GitHub 并设为公开，README 第一屏能看到地址表
 - [ ] 项目页粘贴：第 1 节一句话 + 第 2 节短简介 + 第 3 节正文 + 架构图（architecture.png）
-- [ ] 上传截图（16:9 横屏，第一张为封面）：`slides/00-cover-light.png` → `slides/01-A-light.png` → `slides/03-D-light.png`；控制台池子页 `web/pool.html` 另截一张备用（数字要新）
+- [ ] 上传截图（16:9 横屏，第一张为封面）：`slides/00-cover-light.png` → `slides/01-A-light.png` → `slides/03-D-light.png`；控制台池子页 `web/index.html` 另截一张备用（数字要新）
 - [ ] 视频：优先现场版；兜底用仓库里的录屏
 - [ ] 地址表逐项点开验证可打开（池子合约、身份、交易各点一次）
 - [ ] 类别/赛道按广州站实际表单选（报名链接到手后核对赛道名再填）

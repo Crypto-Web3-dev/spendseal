@@ -35,7 +35,7 @@ multiple agent "cards" under it, each with its own daily sub-cap and its own spe
 ledger. A payment must pass both layers; when a card hits a cap it can file an
 on-chain approval request, and only the owner's approval releases that one payment —
 still whitelist-, single-cap- and balance-bound, still charged to the card's ledger.
-Pool console with per-card accounting and the approval queue: `web/pool.html`.
+Pool console with per-card accounting and the approval queue: `web/index.html`.
 Stage runbook: `docs/pool-demo-runbook.md`. Demo scripts: `bridge/demo/pool-*.mjs`.
 
 ## Layout
