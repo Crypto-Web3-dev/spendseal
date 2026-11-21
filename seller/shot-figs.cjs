@@ -10,7 +10,9 @@ const SRC = 'file://' + path.resolve(
 );
 const OUT = path.resolve(__dirname, '../docs/submission/figs');
 
-const NAMES = ['A-architecture', 'B-flow', 'C-compare'];
+// Map by section id, not by document order: inserting a figure anywhere in
+// the page must not silently re-label every export that follows it.
+const NAMES = { arch: 'A-architecture', flow: 'B-flow', compare: 'C-compare', pool: 'D-pool' };
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
@@ -36,12 +38,16 @@ const NAMES = ['A-architecture', 'B-flow', 'C-compare'];
     // Capture the scroll wrapper, not the <figure>: the figcaption is
     // already shown by the page beside the figure, and a slide carries
     // its own takeaway line instead.
-    const figs = await page.$$('figure.fig .fig-scroll');
-    for (let i = 0; i < figs.length; i += 1) {
-      const name = NAMES[i] || `fig${i}`;
+
+    for (const [sectionId, name] of Object.entries(NAMES)) {
+      const el = await page.$(`#${sectionId} figure.fig .fig-scroll`);
+      if (!el) {
+        console.log(`skip ${sectionId}: no figure with that section id`);
+        continue;
+      }
       const file = path.join(OUT, `${name}-${theme}.png`);
-      await figs[i].screenshot({ path: file });
-      const box = await figs[i].boundingBox();
+      await el.screenshot({ path: file });
+      const box = await el.boundingBox();
       console.log(`${path.basename(file)}: ${Math.round(box.width)}x${Math.round(box.height)}`);
     }
     await page.close();

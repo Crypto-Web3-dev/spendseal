@@ -1,10 +1,14 @@
 # 部署记录 — Monad 测试网（chain 10143）
 
-## 2026-11-21 部署（真实 Circle 测试网 USDC）
+> **当前演示合约只有一个：PoolVault `0xc3cd8c06377401574f8825443f60a18ac748963c`。**
+> 下面「2026-11-21 部署」一节是同一批的早期版本（单 Agent 版 PassportVault），
+> 已退役，仅作历史记录；任何对外材料、演示与地址表都不再引用它。
+
+## 2026-11-21 部署（真实 Circle 测试网 USDC）— 已退役
 
 | 项 | 值 |
 |---|---|
-| PassportVault | `0x88817cf2ef5afa8497f6a95deb04fa7ce8f47cf1` |
+| PassportVault（已退役，勿引用） | `0x88817cf2ef5afa8497f6a95deb04fa7ce8f47cf1` |
 | 部署交易 | `0xbd450291a56596562d1a8cdef5a2cae64abc5082a022415e68b32eeeaf13b9e0` |
 | 部署人 | `0xF582…7Ea1` |
 | USDC（Circle 测试网） | `0x534b2f3A21130d7a60830c2Df862319e593943A3` |
@@ -32,6 +36,32 @@
 角色与 `.env` 一一对应，`tryPay` 的 `msg.sender == p.agent` 校验可通过。
 
 链上实测（2026-11-21）：`isPayee(1, seller)` = `true`，`checkPay(1, seller, 50000)` = `(true, 0, "ok")`——白名单、限额、余额、审计开关均已就绪，正演可直接使用护照 #1。
+
+## PoolVault — 团队预算池（2026-11-21 部署）
+
+`PassportVault` 守一个 Agent；`PoolVault` 守一个团队：一个共享池子（共享余额 / 单笔上限 /
+池级日上限）下挂多张 Agent「卡」，每张卡有独立日额度与独立账本。一笔付款必须两层都过；
+卡撞到上限时可以发起链上审批请求，只有主人批准才放行那一笔。
+
+| 项 | 值 |
+|---|---|
+| PoolVault | `0xc3cd8c06377401574f8825443f60a18ac748963c` |
+| 部署交易 | `0xab74ca168abb2de7262bb80ae3eac70250464d83246222918f02f8302f2ccfe1` |
+| USDC（Circle 测试网） | `0x534b2f3A21130d7a60830c2Df862319e593943A3` |
+
+池子 #1 链上实测（2026-11-21）：
+
+| 字段 | 值 |
+|---|---|
+| balance | 1,000,000（1.00 USDC） |
+| singleLimit | 50,000（0.05 USDC） |
+| dailyLimit | 200,000（0.20 USDC） |
+| revoked / logRejections | false / true |
+| 卡 A `0x6963…6F20` | 日额度 100,000（0.10 USDC），已花 0 |
+| 卡 B `0x4498…dfB3` | 日额度 150,000（0.15 USDC），已花 0 |
+
+池子演示用新页面 `web/pool.html`（地址已写死），原控制台 `web/index.html` 保持指向
+`PassportVault` 作兜底。`.env` 的 `VAULT_ADDRESS` 指向池子，桥与卖家因此自动跟随。
 
 ## 附带核验：P256 预编译
 

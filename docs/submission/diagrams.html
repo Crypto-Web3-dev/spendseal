@@ -289,9 +289,9 @@
     </p>
     <div class="meta">
       <span><span class="k">链</span> Monad testnet · 10143</span>
-      <span><span class="k">金库</span> <span class="mono">0x8881…7cf1</span></span>
+      <span><span class="k">金库池</span> <span class="mono">0xc3cd…963c</span></span>
       <span><span class="k">资产</span> USDC（Circle 测试网）</span>
-      <span><span class="k">测试</span> 17 / 17</span>
+      <span><span class="k">测试</span> 17 + 10</span>
     </div>
   </header>
 
@@ -325,7 +325,7 @@
 
     <figure class="fig">
       <div class="fig-scroll">
-        <svg viewBox="0 0 1080 360" role="img" aria-label="架构图：主人钱包在可信域，Agent 与卖家在不可信域，PassportVault 是唯一强制点并托管全部 USDC。">
+        <svg viewBox="0 0 1080 360" role="img" aria-label="架构图：主人钱包在可信域，Agent 与卖家在不可信域，PoolVault 是唯一强制点并托管全部 USDC。">
           <defs>
             <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
               <path d="M0,0 L10,5 L0,10 z" style="fill: var(--dim)"/>
@@ -354,9 +354,9 @@
           <!-- 金库 -->
           <rect class="bx-ok" x="375" y="70" width="330" height="140" rx="3"/>
           <text class="k" x="540" y="96" text-anchor="middle" style="fill: var(--accent)">强制点 · 无升级入口</text>
-          <text class="t" x="540" y="124" text-anchor="middle" style="font-size: 16">PassportVault</text>
+          <text class="t" x="540" y="124" text-anchor="middle" style="font-size: 16">PoolVault</text>
           <text class="s" x="540" y="148" text-anchor="middle">每个护照独立记账 · 逐笔校验</text>
-          <text class="v" x="540" y="176" text-anchor="middle" font-family="JetBrains Mono, monospace">0x8881…7cf1</text>
+          <text class="v" x="540" y="176" text-anchor="middle" font-family="JetBrains Mono, monospace">0xc3cd…963c</text>
           <text class="s" x="540" y="197" text-anchor="middle">存在→未熔断→未过期→白名单→单笔→日累计→余额</text>
 
           <!-- USDC -->
@@ -424,8 +424,8 @@
       </div>
 
       <div class="comp enforce">
-        <div class="comp-h"><h3>PassportVault</h3><span class="who">强制点</span></div>
-        <div class="addr mono">0x8881…7cf1</div>
+        <div class="comp-h"><h3>PoolVault</h3><span class="who">强制点</span></div>
+        <div class="addr mono">0xc3cd…963c</div>
         <p class="can">托管全部 USDC，按护照隔离记账</p>
         <p class="can">付款路径内逐条校验：未熔断 → 未过期 → 白名单 → 单笔 → UTC 日累计 → 余额</p>
         <p class="cant">没有升级入口，没人能在部署后改规矩</p>
@@ -600,9 +600,103 @@
     </div>
   </section>
 
+  <!-- ================= 04 团队预算池 ================= -->
+  <section id="pool">
+    <h2><span class="num">03</span> 团队预算池：一个池子，多张卡</h2>
+    <p class="lede">
+      前面的金库守<b>一个</b> Agent。团队要给一批 Agent 发预算，问题就变成两个：钱共享，但账要分开；谁也不能把全队的额度吃光；超额不能由机器自己决定。
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+        <svg viewBox="0 0 1080 430" role="img" aria-label="池子结构：一个 PoolVault 共享余额与池级日限，下挂卡 A 与卡 B 各有独立日额度与独立账本；付款必须两层都过，卡撞额度时产生链上待批申请，主人批准后才放行。">
+          <defs>
+            <marker id="pp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" style="fill: var(--dim)"/>
+            </marker>
+            <marker id="pp-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" style="fill: var(--accent)"/>
+            </marker>
+            <marker id="pp-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" style="fill: var(--bad)"/>
+            </marker>
+          </defs>
+
+          <text class="k" x="16" y="18">两层账本</text>
+          <text class="s" x="16" y="40">卡管自己的日额度，池子管全队的总日限与余额</text>
+
+          <!-- 主人 -->
+          <rect class="bx" x="16" y="150" width="140" height="70" rx="3"/>
+          <text class="t" x="86" y="178" text-anchor="middle">主人</text>
+          <text class="s" x="86" y="196" text-anchor="middle">只签池子的事</text>
+          <text class="s" x="86" y="210" text-anchor="middle">批准 / 熔断</text>
+
+          <!-- 池子 -->
+          <rect class="bx-ok" x="250" y="96" width="300" height="180" rx="3"/>
+          <text class="k" x="400" y="122" text-anchor="middle" style="fill: var(--accent)">POOL #1 · 共享</text>
+          <text class="t" x="400" y="150" text-anchor="middle" style="font-size: 15px">PoolVault</text>
+          <text class="s" x="400" y="172" text-anchor="middle">余额 1.00 USDC · 全卡共享</text>
+          <text class="s" x="400" y="192" text-anchor="middle">单笔上限 0.05</text>
+          <text class="s" x="400" y="212" text-anchor="middle">全池日限 0.20（UTC）</text>
+          <text class="s" x="400" y="238" text-anchor="middle" style="fill: var(--accent)">白名单 · 熔断 · 余额</text>
+          <text class="s" x="400" y="258" text-anchor="middle" style="fill: var(--accent)">任何卡都必须过这一层</text>
+
+          <!-- 主人 -> 池子 -->
+          <line class="ln" x1="160" y1="185" x2="246" y2="185" marker-end="url(#pp)"/>
+          <text class="lbl" x="203" y="176" text-anchor="middle">批准</text>
+
+          <!-- 卡 A -->
+          <rect class="bx" x="640" y="60" width="210" height="96" rx="3"/>
+          <text class="k" x="745" y="82" text-anchor="middle">卡 A · 主 AGENT</text>
+          <text class="s" x="745" y="104" text-anchor="middle">子额度 0.10 / 日</text>
+          <text class="s" x="745" y="122" text-anchor="middle">今日已花 0.00</text>
+          <text class="s" x="745" y="140" text-anchor="middle" style="fill: var(--dim)">自己的账本</text>
+
+          <!-- 卡 B -->
+          <rect class="bx" x="640" y="216" width="210" height="96" rx="3"/>
+          <text class="k" x="745" y="238" text-anchor="middle">卡 B · 批量采购</text>
+          <text class="s" x="745" y="260" text-anchor="middle">子额度 0.15 / 日</text>
+          <text class="s" x="745" y="278" text-anchor="middle">今日已花 0.00</text>
+          <text class="s" x="745" y="296" text-anchor="middle" style="fill: var(--dim)">自己的账本</text>
+
+          <!-- 卡 -> 池子 -->
+          <line class="ln" x1="636" y1="108" x2="556" y2="150" marker-end="url(#pp-ok)" style="stroke: var(--accent)"/>
+          <line class="ln" x1="636" y1="264" x2="556" y2="224" marker-end="url(#pp-ok)" style="stroke: var(--accent)"/>
+          <!-- 两个标签收在两条箭头之间的空档里（y 141~232 无线），
+               上下各留 20px 余量，既不压线也不散开 -->
+          <text class="lbl" x="598" y="174" text-anchor="middle" style="fill: var(--accent)">两层都过</text>
+          <text class="lbl" x="598" y="202" text-anchor="middle" style="fill: var(--accent)">才付得出去</text>
+
+          <!-- 卖家 -->
+          <rect class="bx" x="914" y="132" width="150" height="70" rx="3"/>
+          <text class="t" x="989" y="160" text-anchor="middle">卖家</text>
+          <text class="s" x="989" y="178" text-anchor="middle">按事件验付</text>
+
+          <!-- 钱只从池子转出，卡付不出钱 —— 跟全篇「没有直连」保持一致。
+               走图顶部的空白带（y≈48），从卡 A 上沿之外绕过，避开所有盒子。 -->
+          <path d="M 400 96 L 400 48 L 986 48 L 986 128" fill="none" style="stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 7 4" marker-end="url(#pp-ok)"/>
+          <text class="lbl" x="700" y="38" text-anchor="middle" style="fill: var(--accent)">USDC 只从池子转出，从不经卡</text>
+
+          <!-- 超额申请 -->
+          <rect class="bx-bad" x="250" y="316" width="300" height="76" rx="3"/>
+          <text class="t" x="400" y="342" text-anchor="middle" style="fill: var(--bad)">卡撞到额度 → 链上待批</text>
+          <text class="s" x="400" y="362" text-anchor="middle">Agent 只能「申请」，不能自己放行</text>
+          <text class="s" x="400" y="380" text-anchor="middle">主人批准才付，账仍记在那张卡上</text>
+
+          <path d="M 745 316 L 745 354 L 556 354" fill="none" style="stroke: var(--bad); stroke-width: 1.5; stroke-dasharray: 5 3" marker-end="url(#pp-bad)"/>
+          <text class="lbl" x="650" y="346" text-anchor="middle" style="fill: var(--bad)">超额了</text>
+
+          <path d="M 250 354 L 160 354 L 160 226" fill="none" style="stroke: var(--bad); stroke-width: 1.5; stroke-dasharray: 5 3" marker-end="url(#pp-bad)"/>
+          <text class="lbl" x="196" y="300" text-anchor="middle" style="fill: var(--bad)">人批</text>
+        </svg>
+      </div>
+      <figcaption>一个池子管一个团队：钱共享、账分开。卡 A 花 0.15 也吃不到卡 B 的额度，但全队的日限是共同的——谁也不能把池子抽干。超额不是不行，是不能由机器自己决定。</figcaption>
+    </figure>
+  </section>
+
   <!-- ================= 03 覆盖率 ================= -->
   <section id="compare">
-    <h2><span class="num">03</span> 六步覆盖率：谁做了哪几步</h2>
+    <h2><span class="num">04</span> 六步覆盖率：谁做了哪几步</h2>
     <p class="lede">
       单看每一步，几乎都有人做过。<b>但把六步放进同一个能买到东西的闭环，并且把强制点只放在合约里</b>——这是我们检索后未见完整同款的部分。
     </p>
@@ -679,7 +773,7 @@
           <text class="lbl" x="295" y="310" text-anchor="middle" style="fill: var(--accent)">④ tryPay</text>
 
           <rect class="bx-ok" x="360" y="292" width="220" height="60" rx="3"/>
-          <text class="t" x="470" y="316" text-anchor="middle" style="fill: var(--accent); font-size: 12.5">PassportVault</text>
+          <text class="t" x="470" y="316" text-anchor="middle" style="fill: var(--accent); font-size: 12.5">PoolVault</text>
           <text class="s" x="470" y="336" text-anchor="middle">限额 · 白名单 · 余额 · 熔断</text>
 
           <line class="ln" x1="584" y1="322" x2="704" y2="322" marker-end="url(#cp-ok)" style="stroke: var(--accent)"/>
@@ -776,7 +870,7 @@
 
   <!-- ================= 04 痛点 ================= -->
   <section id="pain">
-    <h2><span class="num">04</span> 为什么非做不可</h2>
+    <h2><span class="num">05</span> 为什么非做不可</h2>
     <p class="lede">
       不是“未来可能需要”，是三件已经发生的事：规矩放错地方已被实验证明失效，责任已经划给用户，钱已经在以亿笔量级流动。
     </p>
@@ -813,7 +907,7 @@
 
   <!-- ================= 05 适用领域 ================= -->
   <section id="fit">
-    <h2><span class="num">05</span> 适用领域：什么时候该用，什么时候不该用</h2>
+    <h2><span class="num">06</span> 适用领域：什么时候该用，什么时候不该用</h2>
     <p class="lede">
       这套设计不是所有 Agent 支付的最优解。它在<b>四个条件同时成立</b>时才有价值；否则有更简单、更便宜的选择。
     </p>

@@ -129,6 +129,40 @@
     text-transform: uppercase; color: var(--faint); display: block; margin-bottom: 7px;
   }
   .cover .meta code { font-family: var(--mono); font-size: 20px; }
+
+  /* Right half of the cover: the one number the whole deck argues for.
+     Absolutely placed so the 96px text grid stays untouched. */
+  .cover .seal {
+    position: absolute; right: 116px; top: 88px;
+    width: 400px; height: 400px; rotate: -7deg;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center;
+  }
+  .cover .seal-ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 3px dashed var(--accent); opacity: .30;
+  }
+  .cover .seal-ring::after {
+    content: ""; position: absolute; inset: 18px; border-radius: 50%;
+    border: 1px solid var(--accent); opacity: .7;
+  }
+  .cover .seal-k {
+    font-family: var(--mono); font-size: 15px; letter-spacing: .22em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  .cover .seal-v {
+    margin-top: 12px; font-family: 'Space Grotesk', var(--sans);
+    font-size: 104px; font-weight: 700; line-height: 1; letter-spacing: -.03em;
+    color: var(--accent);
+  }
+  .cover .seal-u {
+    margin-top: 10px; font-size: 17px; color: var(--dim); max-width: 250px;
+    line-height: 1.45;
+  }
+  .cover .seal-note {
+    margin-top: 16px; font-size: 16px; color: var(--faint); line-height: 1.5;
+    max-width: 235px;
+  }
 </style>
 </head>
 <body>
@@ -148,9 +182,17 @@
   <div class="rule"></div>
   <div class="meta">
     <div><span class="k">链</span>Monad testnet · 10143</div>
-    <div><span class="k">金库</span><code>0x8881…7cf1</code></div>
+    <div><span class="k">金库池</span><code>0xc3cd…963c</code></div>
     <div><span class="k">资产</span>USDC · Circle 测试网</div>
-    <div><span class="k">合约测试</span>17 / 17</div>
+    <div><span class="k">合约测试</span>17 + 10</div>
+  </div>
+
+  <div class="seal" aria-hidden="true">
+    <div class="seal-ring"></div>
+    <div class="seal-k">Sealed by contract</div>
+    <div class="seal-v">0.10</div>
+    <div class="seal-u">USDC · 单张卡泄露的最坏损失</div>
+    <div class="seal-note">卡封顶，池共享——<br>谁也吃不到别人的额度。</div>
   </div>
 </section>
 
@@ -168,7 +210,7 @@
     <div class="take">
       Agent 地址里<b>一分 USDC 都没有</b>，只有 gas。所有钱托管在金库、按护照记账——所以“绕过护照”不是一条被堵住的路，而是一条<b>不存在的路</b>。
     </div>
-    <div class="pg">01 / 03</div>
+    <div class="pg">01 / 04</div>
   </div>
 </section>
 
@@ -186,7 +228,25 @@
     <div class="take">
       <b>④ tryPay</b> 是唯一的强制点；<b>②</b> 发生在任何交易之前，是不让一张假发票上链的那一步；<b>③ 可以省</b>——省的是 gas 和可解释性，不是安全。
     </div>
-    <div class="pg">02 / 03</div>
+    <div class="pg">02 / 04</div>
+  </div>
+</section>
+
+<!-- ============ 3 · 团队池 ============ -->
+<section class="slide" data-slide="D">
+  <div class="s-head">
+    <div class="bar"></div>
+    <div class="eyebrow">03 · 团队预算池</div>
+    <h1>一个池子，多张卡</h1>
+  </div>
+  <div class="s-fig">
+    <img data-fig="D" alt="池子结构：PoolVault 共享余额与池级日限，下挂卡 A 与卡 B 各有独立日额度与独立账本；付款必须两层都过，卡撞额度时生成链上待批申请，主人批准后才放行。">
+  </div>
+  <div class="s-foot">
+    <div class="take">
+      钱共享、账分开：卡 A 花 0.15 也吃不到卡 B 的额度，但全队日限是共同的。超额<b>不是不行，是不能由机器自己决定</b>——只能发起申请，钥匙在主人手里。
+    </div>
+    <div class="pg">03 / 04</div>
   </div>
 </section>
 
@@ -194,7 +254,7 @@
 <section class="slide" data-slide="C">
   <div class="s-head">
     <div class="bar"></div>
-    <div class="eyebrow">03 · 同生态对比</div>
+    <div class="eyebrow">04 · 同生态对比</div>
     <h1>否决权：发卡行 → 服务器 → 合约</h1>
   </div>
   <div class="s-fig">
@@ -204,7 +264,7 @@
     <div class="take">
       中间那一格就是“谁在说<b>不</b>”。真正的差异在最右列：我们签的是<b>报价本身</b>，其他方案签的是<b>结算授权</b>。
     </div>
-    <div class="pg">03 / 03</div>
+    <div class="pg">04 / 04</div>
   </div>
 </section>
 
@@ -212,7 +272,7 @@
   // Swap figure sources with the page theme. Re-runs whenever the root's
   // data-theme attribute changes, so rendering a theme after load works too.
   (function () {
-    var BASE = { A: 'A-architecture', B: 'B-flow', C: 'C-compare' };
+    var BASE = { A: 'A-architecture', B: 'B-flow', C: 'C-compare', D: 'D-pool' };
 
     function apply() {
       var theme = document.documentElement.getAttribute('data-theme') || 'light';

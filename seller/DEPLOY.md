@@ -29,7 +29,7 @@ fly launch --copy-config --no-deploy   # app 名被占用就改 fly.toml 里的 
 
 # 3) 注入密钥（值来自仓库根 .env，不要写进任何文件提交）
 fly secrets set \
-  VAULT_ADDRESS=0x88817cf2ef5afa8497f6a95deb04fa7ce8f47cf1 \
+  VAULT_ADDRESS=0xc3cd8c06377401574f8825443f60a18ac748963c \
   SELLER_ADDRESS=<.env 的 SELLER_ADDRESS> \
   SELLER_PRIVATE_KEY=<.env 的 SELLER_PRIVATE_KEY> \
   ATTACKER_ADDRESS=<.env 的 ATTACKER_ADDRESS> \

@@ -1,7 +1,7 @@
 // Protocol-level test of spendseal-mcp through a real MCP client (stdio):
 //   tools/list -> passport_status -> phishing rejected w/o any tx ->
 //   over-price aborted -> real purchase returns an image.
-// The purchase spends 0.05 test USDC from passport #2. Run: npm run test:client
+// The purchase spends 0.05 test USDC from passport #1 in the demo pool. Run: npm run test:client
 import { spawn } from "node:child_process";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -29,7 +29,7 @@ try {
     args: [new URL("../src/index.js", import.meta.url).pathname],
     env: {
       ...process.env,
-      PASSPORT_ID: "2",
+      PASSPORT_ID: "1",
       SELLER_API_BASE: "http://localhost:8787",
     },
   });
@@ -43,7 +43,7 @@ try {
 
     const st1 = await client.callTool({ name: "passport_status", arguments: {} });
     assert(textOf(st1).includes("日限额"), "passport_status returns readable status");
-    assert(textOf(st1).includes("0.000000 USDC") || textOf(st1).includes("今日已付：0 USDC") || textOf(st1).includes("今日已付：0.000000"), "passport #2 starts with 0 spent today");
+    assert(textOf(st1).includes("0.000000 USDC") || textOf(st1).includes("今日已付：0 USDC") || textOf(st1).includes("今日已付：0.000000"), "passport #1 in the demo pool starts with 0 spent today");
 
     // phishing: bridge must reject on signature, spending nothing
     const evil = await client.callTool({
@@ -82,7 +82,7 @@ try {
 
     const st3 = await client.callTool({ name: "passport_status", arguments: {} });
     assert(textOf(st3).includes("今日已付：0.050000 USDC") || textOf(st3).includes("0.05 USDC"),
-      "passport #2 now shows 0.05 USDC spent today");
+      "passport #1 in the demo pool now shows 0.05 USDC spent today");
   } finally {
     await client.close();
   }

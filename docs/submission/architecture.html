@@ -21,7 +21,7 @@
 </style>
 <div class="wrap">
   <h1>🦭 SpendSeal — Architecture</h1>
-  <div class="sub">A sealed spending allowance for your AI agent · Monad Testnet (chain 10143) · PassportVault 0x8881…7cf1</div>
+  <div class="sub">A sealed spending allowance for your AI agent · Monad Testnet (chain 10143) · PoolVault 0xc3cd…963c</div>
 
   <svg class="arrows" width="1600" height="1000" viewBox="0 0 1600 1000">
     <defs>
@@ -72,8 +72,8 @@
 
   <div class="box vault" style="left:300px; top:620px; width:460px;">
     <span class="tag">ON-CHAIN · MONAD</span>
-    <h2>🏦 PassportVault</h2>
-    <p>Holds USDC per passport. Every payment checked in-contract, in fixed order: exists → not revoked → not expired → <b>whitelisted</b> → <b>per-payment cap</b> → <b>daily cap (UTC)</b> → balance. Optional on-chain rejection audit.</p>
+    <h2>🏦 PoolVault</h2>
+    <p>Holds the team's USDC in <b>one pool</b>; each agent draws through a <b>card</b> with its own ledger. Every payment checked in-contract, in fixed order: exists → not revoked → not expired → <b>whitelisted</b> → <b>per-payment cap</b> → <b>pool daily cap (UTC)</b> → <b>card cap</b> → balance. Optional on-chain rejection audit.</p>
   </div>
 
   <div class="step" style="left:700px; top:318px;">① GET → 402 + signed invoice</div>
@@ -85,6 +85,6 @@
   <div class="foot">
     <div><b>Funds isolation</b> — the agent address holds only gas; USDC can move solely through the vault's checks.</div>
     <div><b>Two doors</b> — signatures prove the quote is authentic; the passport enforces the rules. Neither replaces the other.</div>
-    <div><b>Bounded blast radius</b> — a leaked agent key loses at most one day's allowance (demo: 0.20 USDC).</div>
+    <div><b>Bounded blast radius</b> — a leaked agent key loses at most its own card's allowance (demo: 0.10 USDC).</div>
   </div>
 </div>
