@@ -30,7 +30,14 @@ const chain = {
   nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
   rpcUrls: { default: { http: ["https://testnet-rpc.monad.xyz"] } },
 };
-const transport = http(chain.rpcUrls.default.http[0]);
+// The public RPC intermittently times out (ETIMEDOUT on connect) and rate-limits
+// bursts. viem's defaults (3 tries, ~150ms) are far too impatient for a live
+// demo, where a transient network blip must not abort the act on stage.
+const transport = http(chain.rpcUrls.default.http[0], {
+  retryCount: 8,
+  retryDelay: 700,
+  timeout: 30_000,
+});
 export const pub = createPublicClient({ chain, transport });
 const mkWallet = (key) => createWalletClient({ account: privateKeyToAccount(key), chain, transport });
 export const ownerWallet = mkWallet(env.OWNER_PRIVATE_KEY);
@@ -107,6 +114,15 @@ export async function verifyPoolInvoice(invoice) {
 
 // One full seller round-trip for a given wallet: 402 → verify → tryPay → claim.
 // Returns { txHash, bytes } or throws with a readable message.
+const PAY_REASON = {
+  2: "已熔断", 3: "已过期", 4: "收款方不在白名单", 5: "超单笔上限",
+  6: "池子总日限已满", 7: "池余额不足", 9: "卡子额度已满", 10: "不是本池的卡",
+};
+
+// tryPay does NOT revert on a business-rule failure — the tx succeeds and
+// returns (false, code), optionally emitting PaymentRejected. So a successful
+// receipt does NOT mean the payment went through; we must decode the return
+// value. Getting this wrong makes a refusal look like a delivery failure.
 export async function buyWithWallet(wallet, id, url) {
   const first = await fetch(url);
   if (first.status !== 402) throw new Error(`卖家返回 HTTP ${first.status}，不是 402`);
@@ -120,8 +136,25 @@ export async function buyWithWallet(wallet, id, url) {
   });
   const receipt = await pub.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success") throw new Error(`付款交易失败：${hash}`);
+
+  // Decode the vault's verdict rather than inferring it from delivery.
+  const [me] = await wallet.getAddresses();
+  const ret = await pub.call({
+    to: POOL, abi: poolAbi, functionName: "checkPayFor",
+    args: [BigInt(id), me, invoice.payTo, amount],
+  }).catch(() => null);
+
   const paid = await fetch(url, { headers: { "X-PAYMENT-TX": hash } });
-  if (!paid.ok) throw new Error(`付款成功但取货失败：HTTP ${paid.status}`);
+  if (!paid.ok) {
+    // The seller refused to deliver, which is the correct behaviour when the
+    // vault did not actually pay. Report the vault's reason, not a fake
+    // "paid but delivery failed".
+    const code = ret ? Number(ret[1]) : null;
+    throw Object.assign(
+      new Error(`链上拒绝付款${code !== null && code !== 0 ? `（${code} ${PAY_REASON[code] ?? "规则拦截"}）` : ""}：tx ${hash.slice(0, 18)}…，卖家未交货（HTTP ${paid.status}）`),
+      { rejected: true, code, txHash: hash },
+    );
+  }
   const buf = Buffer.from(await paid.arrayBuffer());
   return { txHash: hash, bytes: buf, amount };
 }

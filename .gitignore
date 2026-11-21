@@ -6,3 +6,8 @@ node_modules/
 seller/test/shot.png
 seller/node_modules/
 bridge/node_modules/
+
+# demo run artifacts
+bridge/demo/pool-drain-*.png
+bridge/demo/pool-claim.png
+bridge/demo/pool-request.json

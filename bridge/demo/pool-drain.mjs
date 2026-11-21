@@ -18,7 +18,18 @@ console.log(`=== 池 #${id}：Agent B 开始批量采购（${count} 次）===`);
 console.log(`采购前：池今日已花 ${usdc(before.spentToday)} / ${usdc(before.dailyLimit)}；B 卡已花 ${usdc(cardB0.spentToday)} / ${usdc(cardB0.dailyCap)}`);
 
 for (let i = 1; i <= count; i++) {
-  const r = await buyWithWallet(agentBWallet, id, url);
+  let r;
+  try {
+    r = await buyWithWallet(agentBWallet, id, url);
+  } catch (e) {
+    if (!e.rejected) throw e;
+    // A refusal is a RESULT here, not a crash: this act exists to show the
+    // vault saying no. Print it plainly and stop — nothing more will pass.
+    const p = await getPool(id);
+    console.log(`  第 ${i} 次：被拒 — ${e.message}`);
+    console.log(`  → 池今日已花 ${usdc(p.spentToday)} / ${usdc(p.dailyLimit)}，拒绝已上链留痕。`);
+    process.exit(0);
+  }
   writeFileSync(resolve(here, `pool-drain-${i}.png`), r.bytes);
   const p = await getPool(id);
   console.log(`  第 ${i} 次：付款 ${usdc(r.amount)} 成功（tx ${r.txHash.slice(0, 18)}…），截图已交付 pool-drain-${i}.png；池今日累计 ${usdc(p.spentToday)}`);
@@ -29,4 +40,4 @@ const cardB = await getCard(id, ADDR.agentB);
 const cardA = await getCard(id, ADDR.agentA);
 console.log(`采购后：池今日已花 ${usdc(after.spentToday)} / ${usdc(after.dailyLimit)}（池余额 ${usdc(after.balance)}）`);
 console.log(`分账：卡 A 已花 ${usdc(cardA.spentToday)} / ${usdc(cardA.dailyCap)}；卡 B 已花 ${usdc(cardB.spentToday)} / ${usdc(cardB.dailyCap)}`);
-console.log("→ 池子的日限额已经被 B 打满。接下来让 A 再买一次，看会发生什么。");
+console.log("→ 池子的日限额已经被 B 打满。再让 B 买一次，看池子层怎么说。");

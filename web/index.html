@@ -56,7 +56,7 @@
 <div class="err" id="errBox"></div>
 <main>
   <section class="panel">
-    <h2>💰 预算池（Pool #1）</h2>
+    <h2>💰 预算池（Pool #<span id="poolId">—</span>）</h2>
     <div class="big" id="pBalance">— USDC</div>
     <div class="small dim">池余额（所有卡共享）</div>
     <div class="bar"><div id="pDailyBar" style="width:0%"></div></div>
@@ -64,6 +64,21 @@
     <div class="row"><span class="dim">单笔上限（任何卡、含批准例外）</span><span id="pSingle">—</span></div>
     <div class="row"><span class="dim">累计总支出</span><span id="pTotal">—</span></div>
     <div class="row"><span class="dim">合约</span><span class="mono small" id="pAddr">—</span></div>
+    <div style="margin-top:16px; padding-top:14px; border-top:1px dashed #1d2537;">
+      <div class="small dim" style="margin-bottom:8px;">主人资金操作（需连接主人钱包）</div>
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+        <input id="fundAmt" type="number" min="0" step="0.01" placeholder="金额" value="0.50"
+               style="flex:1; min-width:90px; padding:9px 12px; border-radius:9px; border:1px solid var(--line); background:#0d1119; color:var(--txt); font-size:15px;">
+        <span class="small dim">USDC</span>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn-ok" id="btnDeposit" style="flex:1;">＋ 存入 USDC</button>
+        <button class="btn-no" id="btnWithdraw" style="flex:1;">－ 提回 USDC</button>
+      </div>
+      <div class="small dim" id="fundHint" style="margin-top:8px; line-height:1.45;">
+        存入需两步：先授权池子花这笔 USDC，再入账。提回一步完成，且熔断后依然可用。
+      </div>
+    </div>
     <div style="margin-top:14px; display:flex; gap:10px;">
       <button class="btn-danger" id="btnRevoke">⛔ 熔断整个池子（所有卡立即停付）</button>
     </div>
@@ -88,9 +103,14 @@
 <script>
 "use strict";
 // ===== 配置 =====
+// ?passport=N selects which pool in this pool contract to view; ?rpc=<url>
+// overrides the endpoint (e.g. a local anvil fork). Both are read-only UI
+// switches — the contract address itself is fixed in the page on purpose.
+const QS = new URLSearchParams(location.search);
+const _pp = QS.get("passport");
 const POOL = "0xc3cd8c06377401574f8825443f60a18ac748963c";
-const POOL_ID = 1n;
-const RPC = "https://testnet-rpc.monad.xyz";
+const POOL_ID = /^\d+$/.test(_pp ?? "") ? BigInt(_pp) : 2n;
+const RPC = QS.get("rpc") || "https://testnet-rpc.monad.xyz";
 const CHAIN_ID_HEX = "0x279f"; // 10143 = Monad Testnet
 const LABELS = {
   "0xf58214785825c8faebb89a61c666fffc60677ea1": "主人 owner",
@@ -102,7 +122,11 @@ const SEL = {
   getPassport: "0x9f5679f4", revoke: "0x20c5429b",
   getCard: "0x619598a4", cardCount: "0x92a5afd2", cardAt: "0x053037b9",
   getRequest: "0x6a028907", approveRequest: "0x2c0a90a9", rejectRequest: "0x3d1894af",
+  depositUSDC: "0xe740010f", withdraw: "0x441a3e70",
 };
+// USDC (Circle testnet) — only used for allowance/balance reads and approve().
+const USDC = "0x534b2f3A21130d7a60830c2Df862319e593943A3";
+const U_SEL = { approve: "0x095ea7b3", allowance: "0xdd62ed3e", balanceOf: "0x70a08231" };
 const TOPIC = {
   executed: "0xb416667e3544549e9de43167eede842b8753db27f89921e395a027b03bca87a9",
   rejected: "0x2a3dead947b64b031bf7c449ccf92ac3d1ea47a5189dd20088c17342d821034f",
@@ -123,12 +147,31 @@ const words = (hex) => { const h = hex.replace("0x", ""); const out = []; for (l
 const wAddr = (w) => "0x" + w.slice(24);
 const err = (m) => { $("errBox").textContent = m || ""; };
 
-async function rpc(method, params) {
+// The public RPC answers a burst with a plain-text "Rate limit exceeded"
+// body instead of JSON, and it is easy to trip on first load (log scanning
+// is ~30 calls). Back off and retry rather than failing the whole render —
+// a blank console on stage is worse than a slow one.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function rpcOnce(method, params) {
   const r = await fetch(RPC, { method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
-  const j = await r.json();
-  if (j.error) throw new Error(j.error.message);
+  const text = await r.text();
+  let j;
+  try { j = JSON.parse(text); }
+  catch { throw Object.assign(new Error(text.slice(0, 80) || `HTTP ${r.status}`), { retryable: true }); }
+  if (j.error) throw Object.assign(new Error(j.error.message), { retryable: true });
   return j.result;
+}
+async function rpc(method, params) {
+  let delay = 350;
+  for (let attempt = 0; ; attempt++) {
+    try { return await rpcOnce(method, params); }
+    catch (e) {
+      if (attempt >= 5) throw e;
+      await sleep(delay + Math.random() * 250);
+      delay *= 2;                       // 350 → 700 → 1400 → 2800 → 5600ms
+    }
+  }
 }
 const call = (data) => rpc("eth_call", [{ to: POOL, data }, "latest"]);
 const enc2 = (sel, a, b) => sel + word(a) + word(b);
@@ -157,7 +200,11 @@ async function readCards() {
 }
 async function scanLogs() {
   const latest = BigInt(await rpc("eth_blockNumber", []));
-  if (scannedTo === null) scannedTo = latest > 3000n ? latest - 3000n : 0n;
+  // 600 blocks (~12 chunks) is enough to catch everything the demo produces,
+  // and it trips the public RPC's rate limit far less often than 3000 did.
+  // Historical events outside this window simply don't render; on-chain state
+  // (balance, daily total, per-card ledgers) is read via eth_call and is exact.
+  if (scannedTo === null) scannedTo = latest > 600n ? latest - 600n : 0n;
   if (latest <= scannedTo) return;
   for (let from = scannedTo + 1n; from <= latest; from += 100n) {
     const to = from + 99n > latest ? latest : from + 99n;
@@ -206,6 +253,7 @@ async function readRequests() {
 // ===== 渲染 =====
 function render(pool, cards, reqs) {
   $("pAddr").textContent = POOL;
+  $("poolId").textContent = POOL_ID.toString();
   $("poolStatus").innerHTML = pool.revoked
     ? '<span class="dot dead"></span>池子已熔断'
     : '<span class="dot"></span>池子运行中 · Monad 测试网';
@@ -237,17 +285,31 @@ function render(pool, cards, reqs) {
       '<div class="dim" style="margin-bottom:10px">暂无待批申请</div>') +
     done.map((r) => `<div class="req done"><b>申请 #${r.rid}</b> · ${label(r.agent)} · ${usdc(r.amount)} —— ${r.state === 2 ? "✅ 已批准付款" : "👎 已拒绝"}</div>`).join("");
 
+  renderFeed();
+}
+
+// Kept separate from render() so the feed can fill in after the numbers are
+// already on screen (log scanning is the slow, rate-limited half).
+function renderFeed() {
   $("feed").innerHTML = feedItems.slice(-18).reverse()
     .map((f) => `<div>${f.txt} <span class="blk">#${f.blk}</span></div>`).join("") || '<div class="dim">暂无事件</div>';
 }
 
 async function refresh() {
+  // Numbers first. The pool balance, daily total and per-card ledgers come
+  // from eth_call and are cheap; they must appear within a second even when
+  // the log scan is being rate-limited. The event feed fills in after.
   try {
-    await scanLogs();
     const [pool, cards, reqs] = await Promise.all([readPool(), readCards(), readRequests()]);
     render(pool, cards, reqs);
-    err("");
-  } catch (e) { err("读取链上状态失败：" + e.message); }
+  } catch (e) {
+    err("读取链上状态失败：" + e.message);
+    return;
+  }
+  // Event scanning is best-effort: a rate-limited feed must never blank the
+  // numbers above it.
+  try { await scanLogs(); renderFeed(); err(""); }
+  catch (e) { err("链上事件暂时取不到（" + e.message.slice(0, 50) + "）——上方数字仍为链上实时值"); }
 }
 
 // ===== 钱包写入 =====
@@ -315,6 +377,80 @@ window.decide = async (rid, ok) => {
 $("btnRevoke").onclick = (e) => {
   if (!confirm("确认熔断整个池子？所有卡立即停付，不可恢复（余额仍可提回）。")) return;
   sendTx(SEL.revoke + word(POOL_ID), e.currentTarget);
+};
+
+// ===== 主人资金操作：存入 / 提回 =====
+// Amount is entered in USDC and converted to 6-decimal base units. Parsed from
+// the decimal string rather than multiplied as a float, so 0.07 cannot land on
+// 69999.99 units and truncate to a cent short.
+function parseUnits(str) {
+  const s = String(str).trim();
+  if (!/^\d+(\.\d{1,6})?$/.test(s)) throw new Error("金额格式不对（最多 6 位小数）");
+  const [i, f = ""] = s.split(".");
+  return BigInt(i) * 1000000n + BigInt((f + "000000").slice(0, 6));
+}
+const amtInput = () => {
+  const v = $("fundAmt").value;
+  if (!v) throw new Error("先填金额");
+  const amount = parseUnits(v);
+  if (amount === 0n) throw new Error("金额不能为 0");
+  return amount;
+};
+const setHint = (t) => { $("fundHint").textContent = t; };
+
+// Deposit: ERC-20 needs an allowance before the pool can pull the tokens, so
+// this is approve() then depositUSDC(). We only approve what is needed beyond
+// the existing allowance — never an unlimited approval.
+$("btnDeposit").onclick = async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    if (!account) throw new Error("先点「连接主人钱包」");
+    const amount = amtInput();
+    await assertChain();
+    const owner = account.toLowerCase();
+    const allowanceHex = await rpc("eth_call", [{
+      to: USDC, data: U_SEL.allowance + addrWord(owner) + addrWord(POOL),
+    }, "latest"]);
+    const allowance = BigInt(allowanceHex);
+    if (allowance < amount) {
+      setHint("第 1/2 步：授权池子花这笔 USDC…请在钱包里确认");
+      await window.ethereum.request({ method: "eth_sendTransaction", params: [{
+        from: account, to: USDC, chainId: CHAIN_ID_HEX,
+        data: U_SEL.approve + addrWord(POOL) + word(amount),
+      }] });
+      setHint("第 2/2 步：入账到池子…请在钱包里确认");
+    } else {
+      setHint("已有足够授权，直接入账…请在钱包里确认");
+    }
+    await window.ethereum.request({ method: "eth_sendTransaction", params: [{
+      from: account, to: POOL, chainId: CHAIN_ID_HEX,
+      data: SEL.depositUSDC + word(POOL_ID) + word(amount),
+    }] });
+    setHint(`已发起存入 ${usdc(amount)}，等链上确认后自动刷新`);
+    setTimeout(refresh, 2500);
+  } catch (err) { err("存入失败：" + (err.message || err)); }
+  btn.disabled = false;
+};
+
+$("btnWithdraw").onclick = async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    if (!account) throw new Error("先点「连接主人钱包」");
+    const amount = amtInput();
+    await assertChain();
+    // Wording matters: revocation must never trap the owner's money, and that
+    // is exactly the moment someone reaches for this button.
+    setHint("提回…请在钱包里确认（熔断后同样可用）");
+    await window.ethereum.request({ method: "eth_sendTransaction", params: [{
+      from: account, to: POOL, chainId: CHAIN_ID_HEX,
+      data: SEL.withdraw + word(POOL_ID) + word(amount),
+    }] });
+    setHint(`已发起提回 ${usdc(amount)}，等链上确认后自动刷新`);
+    setTimeout(refresh, 2500);
+  } catch (err) { err("提回失败：" + (err.message || err)); }
+  btn.disabled = false;
 };
 
 refresh();
